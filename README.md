@@ -1,0 +1,2 @@
+# Bedwars-Plugin
+MultiPaper compatible
