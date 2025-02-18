@@ -2,7 +2,7 @@
 
 This plugin brings the exciting **Bedwars** game mode to your Minecraft server, inspired by the popular **Hypixel Bedwars**. It’s fully compatible with **Multipaper**, providing smooth and efficient gameplay across multiple servers. Whether you run a small server or a large network, this plugin is designed to offer a fun and dynamic Bedwars experience.
 
-![Bedwars Logo](https://example.com/bedwars_logo.png) *(Replace with an actual logo if available)*
+![Bedwars Logo](https://cdnb.artstation.com/p/assets/images/images/054/409/969/large/glawdys-hodiesne-bedwarslit.jpg?1664466698)
 
 ---
 
