@@ -25,12 +25,14 @@ public class GUIManager implements Listener {
     private final ArenaSelectionGUI arenaGUI;
     private final TeamSelectionGUI teamGUI;
     private final GameMenuGUI gameMenuGUI;
+    private final SpectatorGUI spectatorGUI;
 
     public GUIManager(BedwarsPlugin plugin) {
         this.plugin = plugin;
         this.arenaGUI = new ArenaSelectionGUI(plugin);
         this.teamGUI = new TeamSelectionGUI();
         this.gameMenuGUI = new GameMenuGUI();
+        this.spectatorGUI = new SpectatorGUI();
     }
 
     // =====================================================================
@@ -99,6 +101,9 @@ public class GUIManager implements Listener {
         } else if (game.getGameState() == GameState.WAITING || game.getGameState() == GameState.STARTING) {
             // In lobby → open team selector
             teamGUI.open(player, game);
+        } else if (game.getGameState() == GameState.PLAYING && game.isSpectator(player.getUniqueId())) {
+            // Spectator → open player teleport list
+            spectatorGUI.open(player, game);
         } else if (game.getGameState() == GameState.PLAYING) {
             // In game → open game menu
             gameMenuGUI.open(player, game);
@@ -138,6 +143,13 @@ public class GUIManager implements Listener {
         if (title.equals(GameMenuGUI.TITLE)) {
             event.setCancelled(true);
             handleGameMenuGUI(player, slot);
+            return;
+        }
+
+        // ---- Spectator Teleport GUI ----
+        if (title.equals(SpectatorGUI.TITLE)) {
+            event.setCancelled(true);
+            handleSpectatorGUI(player, slot);
             return;
         }
 
@@ -300,6 +312,37 @@ public class GUIManager implements Listener {
     }
 
     // =====================================================================
+    // SPECTATOR TELEPORT HANDLER
+    // =====================================================================
+
+    private void handleSpectatorGUI(Player spectator, int slot) {
+        BedwarsGame game = plugin.getGameManager().getPlayerGame(spectator);
+        if (game == null) { spectator.closeInventory(); return; }
+
+        ItemStack item = spectator.getOpenInventory().getTopInventory().getItem(slot);
+        if (item == null || item.getType() != org.bukkit.Material.PLAYER_HEAD) return;
+
+        org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+        if (meta == null) return;
+
+        // Resolve target name from skull meta
+        if (item.getItemMeta() instanceof org.bukkit.inventory.meta.SkullMeta skullMeta) {
+            org.bukkit.OfflinePlayer owner = skullMeta.getOwningPlayer();
+            if (owner == null) return;
+            Player target = Bukkit.getPlayer(owner.getUniqueId());
+            if (target == null || !target.isOnline()) {
+                MessageUtils.sendMessage(spectator, "&cThat player is no longer online.");
+                spectator.closeInventory();
+                return;
+            }
+            spectator.closeInventory();
+            spectator.teleport(target.getLocation());
+            MessageUtils.sendMessage(spectator, "&bTeleported to &f" + target.getName() + "&b.");
+            playClick(spectator);
+        }
+    }
+
+    // =====================================================================
     // SHOP HANDLER (delegates to ShopManager)
     // =====================================================================
 
@@ -350,4 +393,5 @@ public class GUIManager implements Listener {
     public ArenaSelectionGUI getArenaGUI() { return arenaGUI; }
     public TeamSelectionGUI getTeamGUI() { return teamGUI; }
     public GameMenuGUI getGameMenuGUI() { return gameMenuGUI; }
+    public SpectatorGUI getSpectatorGUI() { return spectatorGUI; }
 }

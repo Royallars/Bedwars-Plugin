@@ -11,8 +11,11 @@ import com.bedwars.utils.MessageUtils;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Firework;
 import org.bukkit.entity.IronGolem;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -60,6 +63,9 @@ public class BedwarsGame {
 
     // Grace period (first 5 seconds of game — no PvP)
     private boolean gracePeriod = false;
+
+    // Kill streaks: player UUID → consecutive kills without dying
+    private final Map<UUID, Integer> killStreaks = new HashMap<>();
 
     // Dream Defenders: golem UUID → owning team
     private final Map<UUID, BedwarsTeam> dreamDefenders = new HashMap<>();
@@ -155,6 +161,8 @@ public class BedwarsGame {
                 killerTeam.addFinalKill();
             }
             playerKills.merge(killer.getUniqueId(), 1, Integer::sum);
+            int streak = killStreaks.merge(killer.getUniqueId(), 1, Integer::sum);
+            announceKillStreak(killer, streak);
             broadcast(MessageUtils.color("&c&l" + killer.getName() + " &r&eFinally killed &c&l" + player.getName() + "&r&e!"));
 
             MessageUtils.sendTitle(killer, "&6&lFINAL KILL", "&e+" + 1 + " Kill", 10, 40, 10);
@@ -162,6 +170,9 @@ public class BedwarsGame {
         } else {
             broadcast(MessageUtils.color("&7&l" + player.getName() + " &r&7was eliminated!"));
         }
+
+        // Reset victim's kill streak
+        killStreaks.remove(uuid);
 
         team.eliminatePlayer(uuid);
 
@@ -199,7 +210,12 @@ public class BedwarsGame {
                 killerTeam.addKill();
             }
             playerKills.merge(killer.getUniqueId(), 1, Integer::sum);
+            int streak = killStreaks.merge(killer.getUniqueId(), 1, Integer::sum);
+            announceKillStreak(killer, streak);
         }
+
+        // Reset victim's kill streak
+        killStreaks.remove(uuid);
 
         int respawnTime = plugin.getConfig().getInt("game.respawn-time", 5);
         startRespawnCountdown(player, respawnTime);
@@ -513,6 +529,9 @@ public class BedwarsGame {
 
         scoreboard.updateAll();
 
+        // Record persistent stats
+        plugin.getStatsManager().recordGameEnd(this, winnerTeam);
+
         // Show stats 3 seconds after game ends
         new BukkitRunnable() {
             @Override
@@ -639,6 +658,7 @@ public class BedwarsGame {
 
         playerTeamMap.clear();
         playerKills.clear();
+        killStreaks.clear();
         spectators.clear();
         respawnCountdowns.clear();
         respawnTasks.values().forEach(BukkitTask::cancel);
@@ -674,6 +694,12 @@ public class BedwarsGame {
 
     public void destroyBed(BedwarsTeam team, Player destroyer) {
         team.destroyBed();
+
+        // Firework effect at bed location
+        Location bedLoc = team.getBedLocation();
+        if (bedLoc != null) {
+            spawnBedFirework(bedLoc, team.getColor());
+        }
 
         if (destroyer != null) {
             BedwarsTeam destroyerTeam = playerTeamMap.get(destroyer.getUniqueId());
@@ -743,6 +769,7 @@ public class BedwarsGame {
         if (spectatorLocation != null) {
             player.teleport(spectatorLocation);
         }
+        HotbarManager.giveSpectatorItems(player);
     }
 
     private void sendToMainLobby(Player player) {
@@ -766,6 +793,43 @@ public class BedwarsGame {
 
     private void broadcastTeamEliminated(BedwarsTeam team) {
         broadcast(MessageUtils.color("&c&l" + team.getColor().getDisplayName() + " &r&cTEAM has been eliminated!"));
+    }
+
+    private void announceKillStreak(Player player, int streak) {
+        String title = null;
+        String msg = null;
+        switch (streak) {
+            case 3  -> { title = "&63 KILL STREAK!"; msg = "&e" + player.getName() + " &7is on a &63 kill streak!"; }
+            case 5  -> { title = "&65 KILL STREAK!"; msg = "&e" + player.getName() + " &7is on a &65 kill streak!"; }
+            case 7  -> { title = "&c7 KILL STREAK!"; msg = "&e" + player.getName() + " &7is on a &c7 kill streak!"; }
+            case 10 -> { title = "&c&l10 KILL STREAK!"; msg = "&e&l" + player.getName() + " &r&7is on a &c&l10 kill streak!"; }
+            default -> {
+                if (streak > 10 && streak % 5 == 0) {
+                    title = "&c&l" + streak + " KILL STREAK!";
+                    msg = "&e&l" + player.getName() + " &r&7is on a &c&l" + streak + " kill streak!";
+                }
+            }
+        }
+        if (msg != null) {
+            broadcast(MessageUtils.color(msg));
+            MessageUtils.sendTitle(player, MessageUtils.color(title), "", 5, 30, 5);
+            MessageUtils.playSound(player, Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.8f);
+        }
+    }
+
+    private void spawnBedFirework(Location loc, TeamColor color) {
+        World w = loc.getWorld();
+        if (w == null) return;
+        Firework fw = (Firework) w.spawnEntity(loc.clone().add(0, 1, 0), EntityType.FIREWORK_ROCKET);
+        FireworkMeta meta = fw.getFireworkMeta();
+        meta.setPower(1);
+        meta.addEffect(FireworkEffect.builder()
+                .withColor(color.getFireworkColor())
+                .withFade(Color.WHITE)
+                .with(FireworkEffect.Type.BALL_LARGE)
+                .trail(true)
+                .build());
+        fw.setFireworkMeta(meta);
     }
 
     // ============================================================
@@ -921,6 +985,11 @@ public class BedwarsGame {
             all.addAll(team.getPlayers());
         }
         return all;
+    }
+
+    /** Returns all UUIDs who participated in the current/recent game, including eliminated players. */
+    public Set<UUID> getAllParticipants() {
+        return Collections.unmodifiableSet(playerTeamMap.keySet());
     }
 
     public int getPlayerCount() {

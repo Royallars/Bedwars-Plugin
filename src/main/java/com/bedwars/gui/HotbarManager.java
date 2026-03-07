@@ -45,6 +45,14 @@ public class HotbarManager {
                 List.of("&7Click to open the Upgrade Shop.")));
     }
 
+    /** Items given to spectators (compass to open player list). */
+    public static void giveSpectatorItems(Player player) {
+        player.getInventory().clear();
+        player.getInventory().setItem(SLOT_COMPASS, buildItem(
+                Material.COMPASS, "&b&lSpectate Players",
+                List.of("&7Click to teleport to a living player.")));
+    }
+
     public static boolean isCompass(ItemStack item) {
         return item != null && item.getType() == Material.COMPASS;
     }

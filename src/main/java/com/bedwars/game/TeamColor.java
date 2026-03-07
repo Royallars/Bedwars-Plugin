@@ -1,6 +1,7 @@
 package com.bedwars.game;
 
 import org.bukkit.ChatColor;
+import org.bukkit.Color;
 import org.bukkit.DyeColor;
 import org.bukkit.Material;
 
@@ -82,6 +83,19 @@ public enum TeamColor {
             case WHITE -> Material.WHITE_STAINED_GLASS_PANE;
             case PINK -> Material.PINK_STAINED_GLASS_PANE;
             case GRAY -> Material.GRAY_STAINED_GLASS_PANE;
+        };
+    }
+
+    public Color getFireworkColor() {
+        return switch (this) {
+            case RED -> Color.RED;
+            case BLUE -> Color.BLUE;
+            case GREEN -> Color.GREEN;
+            case YELLOW -> Color.YELLOW;
+            case AQUA -> Color.AQUA;
+            case WHITE -> Color.WHITE;
+            case PINK -> Color.FUCHSIA;
+            case GRAY -> Color.GRAY;
         };
     }
 

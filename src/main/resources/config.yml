@@ -23,6 +23,20 @@ game:
   # Whether to allow spectators
   allow-spectators: true
 
+# Database settings for player statistics
+# type: mysql  → connects to a MySQL/MariaDB server
+# type: h2     → uses an embedded H2 file database (no setup needed)
+database:
+  type: h2
+  # MySQL settings (only used when type: mysql)
+  host: localhost
+  port: 3306
+  name: bedwars
+  username: root
+  password: ""
+  # Connection pool size
+  pool-size: 5
+
 # Resource generator settings
 generators:
   # Iron generator

@@ -35,4 +35,14 @@ public enum GeneratorType {
     public int getMaxStack() {
         return maxStack;
     }
+
+    /** Chat-color prefix used in the generator hologram label. */
+    public String getHologramColor() {
+        return switch (this) {
+            case IRON -> "§f";
+            case GOLD -> "§6";
+            case DIAMOND -> "§b";
+            case EMERALD -> "§a";
+        };
+    }
 }

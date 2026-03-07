@@ -2,6 +2,7 @@ package com.bedwars;
 
 import com.bedwars.commands.BedwarsCommand;
 import com.bedwars.commands.JoinCommand;
+import com.bedwars.commands.StatsCommand;
 import com.bedwars.game.BedwarsGame;
 import com.bedwars.game.GameManager;
 import com.bedwars.gui.GUIManager;
@@ -9,6 +10,7 @@ import com.bedwars.listeners.BedListener;
 import com.bedwars.listeners.GameListener;
 import com.bedwars.listeners.PlayerListener;
 import com.bedwars.listeners.ShopListener;
+import com.bedwars.stats.StatsManager;
 import com.bedwars.utils.ConfigManager;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -21,6 +23,7 @@ public class BedwarsPlugin extends JavaPlugin {
     private GameManager gameManager;
     private ConfigManager configManager;
     private GUIManager guiManager;
+    private StatsManager statsManager;
 
     @Override
     public void onEnable() {
@@ -33,6 +36,8 @@ public class BedwarsPlugin extends JavaPlugin {
         configManager = new ConfigManager(this);
         gameManager = new GameManager(this);
         guiManager = new GUIManager(this);
+        statsManager = new StatsManager(this);
+        statsManager.initialize();
 
         // Load saved arenas
         loadArenas();
@@ -60,6 +65,11 @@ public class BedwarsPlugin extends JavaPlugin {
             }
         }
 
+        // Close database connection
+        if (statsManager != null) {
+            statsManager.shutdown();
+        }
+
         getLogger().info("BedwarsPlugin has been disabled. Goodbye!");
     }
 
@@ -83,6 +93,9 @@ public class BedwarsPlugin extends JavaPlugin {
 
         JoinCommand leaveCommand = new JoinCommand(this, true);
         getCommand("bwleave").setExecutor(leaveCommand);
+
+        StatsCommand statsCommand = new StatsCommand(this);
+        getCommand("bwstats").setExecutor(statsCommand);
     }
 
     private void registerListeners() {
@@ -108,5 +121,9 @@ public class BedwarsPlugin extends JavaPlugin {
 
     public GUIManager getGuiManager() {
         return guiManager;
+    }
+
+    public StatsManager getStatsManager() {
+        return statsManager;
     }
 }

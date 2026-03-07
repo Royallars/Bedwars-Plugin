@@ -17,6 +17,9 @@ commands:
   bwleave:
     description: Leave current Bedwars game
     usage: /bwleave
+  bwstats:
+    description: View your BedWars statistics
+    usage: /bwstats [player]
   bwsetup:
     description: Setup a Bedwars arena
     usage: /bwsetup <subcommand>
