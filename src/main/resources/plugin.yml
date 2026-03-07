@@ -20,6 +20,9 @@ commands:
   bwstats:
     description: View your BedWars statistics
     usage: /bwstats [player]
+  bwtop:
+    description: View the BedWars leaderboard
+    usage: /bwtop [wins|kills|finals|beds|games]
   bwsetup:
     description: Setup a Bedwars arena
     usage: /bwsetup <subcommand>

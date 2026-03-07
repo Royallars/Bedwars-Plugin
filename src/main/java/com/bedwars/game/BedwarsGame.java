@@ -56,6 +56,8 @@ public class BedwarsGame {
     private BukkitTask countdownTask;
     private BukkitTask gameTask;
     private BukkitTask scoreboardTask;
+    private BukkitTask compassTask;
+    private BukkitTask hudTask;
 
     // Track respawning players
     private final Map<UUID, Integer> respawnCountdowns = new HashMap<>();
@@ -404,6 +406,53 @@ public class BedwarsGame {
                 scoreboard.updateAll();
             }
         }.runTaskTimer(plugin, 0L, 40L);
+
+        // Compass enemy-tracking task — every second point each player's compass
+        // toward their nearest living enemy (skips spectators and grace period)
+        compassTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (gracePeriod) return;
+                for (UUID uuid : getAllPlayers()) {
+                    Player player = Bukkit.getPlayer(uuid);
+                    if (player == null || player.getGameMode() == GameMode.SPECTATOR) continue;
+                    BedwarsTeam myTeam = playerTeamMap.get(uuid);
+                    if (myTeam == null) continue;
+
+                    Location nearest = null;
+                    double nearestDist = Double.MAX_VALUE;
+
+                    for (UUID enemyUuid : getAllPlayers()) {
+                        if (enemyUuid.equals(uuid)) continue;
+                        BedwarsTeam enemyTeam = playerTeamMap.get(enemyUuid);
+                        if (enemyTeam == null || enemyTeam == myTeam) continue;
+                        Player enemy = Bukkit.getPlayer(enemyUuid);
+                        if (enemy == null || enemy.getGameMode() == GameMode.SPECTATOR) continue;
+                        double dist = player.getLocation().distanceSquared(enemy.getLocation());
+                        if (dist < nearestDist) {
+                            nearestDist = dist;
+                            nearest = enemy.getLocation();
+                        }
+                    }
+
+                    if (nearest != null) {
+                        player.setCompassTarget(nearest);
+                    }
+                }
+            }
+        }.runTaskTimer(plugin, 20L, 20L);
+
+        // Action-bar HUD task — every second show iron/gold/diamond counts
+        hudTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                for (UUID uuid : getAllPlayers()) {
+                    Player player = Bukkit.getPlayer(uuid);
+                    if (player == null || player.getGameMode() == GameMode.SPECTATOR) continue;
+                    sendResourceHud(player);
+                }
+            }
+        }.runTaskTimer(plugin, 20L, 20L);
     }
 
     private void applyOngoingEffects() {
@@ -507,6 +556,8 @@ public class BedwarsGame {
         // Cancel game tasks
         if (gameTask != null) gameTask.cancel();
         if (scoreboardTask != null) scoreboardTask.cancel();
+        if (compassTask != null) compassTask.cancel();
+        if (hudTask != null) hudTask.cancel();
 
         // Announce winner
         broadcast(MessageUtils.color("&6&l" + (winnerTeam != null ? winnerTeam.getColor().getDisplayName() : "&7Nobody") + " &r&6has won the game!"));
@@ -815,6 +866,40 @@ public class BedwarsGame {
             MessageUtils.sendTitle(player, MessageUtils.color(title), "", 5, 30, 5);
             MessageUtils.playSound(player, Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.8f);
         }
+    }
+
+    /**
+     * Sends an action-bar line showing the player's current iron / gold / diamond count,
+     * plus whether their bed is still alive.
+     */
+    private void sendResourceHud(Player player) {
+        org.bukkit.inventory.PlayerInventory inv = player.getInventory();
+        int iron     = countMaterial(inv, org.bukkit.Material.IRON_INGOT);
+        int gold     = countMaterial(inv, org.bukkit.Material.GOLD_INGOT);
+        int diamond  = countMaterial(inv, org.bukkit.Material.DIAMOND);
+        int emerald  = countMaterial(inv, org.bukkit.Material.EMERALD);
+
+        BedwarsTeam team = playerTeamMap.get(player.getUniqueId());
+        String bedIcon = (team != null && team.isBedAlive()) ? "&a✔ Bed" : "&c✗ Bed";
+
+        String hud = MessageUtils.color(
+            "&fIron: &7" + iron +
+            "  &6Gold: &7" + gold +
+            (diamond  > 0 ? "  &bDiamond: &7"  + diamond  : "") +
+            (emerald  > 0 ? "  &aEmerald: &7"  + emerald  : "") +
+            "   " + bedIcon
+        );
+        MessageUtils.sendActionBar(player, hud);
+    }
+
+    private int countMaterial(org.bukkit.inventory.PlayerInventory inv, org.bukkit.Material mat) {
+        int count = 0;
+        for (ItemStack item : inv.getContents()) {
+            if (item != null && item.getType() == mat) {
+                count += item.getAmount();
+            }
+        }
+        return count;
     }
 
     private void spawnBedFirework(Location loc, TeamColor color) {

@@ -2,6 +2,7 @@ package com.bedwars;
 
 import com.bedwars.commands.BedwarsCommand;
 import com.bedwars.commands.JoinCommand;
+import com.bedwars.commands.LeaderboardCommand;
 import com.bedwars.commands.StatsCommand;
 import com.bedwars.game.BedwarsGame;
 import com.bedwars.game.GameManager;
@@ -96,6 +97,10 @@ public class BedwarsPlugin extends JavaPlugin {
 
         StatsCommand statsCommand = new StatsCommand(this);
         getCommand("bwstats").setExecutor(statsCommand);
+
+        LeaderboardCommand topCommand = new LeaderboardCommand(this);
+        getCommand("bwtop").setExecutor(topCommand);
+        getCommand("bwtop").setTabCompleter(topCommand);
     }
 
     private void registerListeners() {

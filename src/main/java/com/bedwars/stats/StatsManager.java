@@ -183,6 +183,57 @@ public class StatsManager {
         return null;
     }
 
+    /**
+     * Supported sort columns for the leaderboard.
+     */
+    public enum LeaderboardStat {
+        WINS(COL_WINS, "Wins"),
+        KILLS(COL_KILLS, "Kills"),
+        FINALS(COL_FINALS, "Final Kills"),
+        BEDS(COL_BEDS, "Beds Broken"),
+        GAMES(COL_GAMES, "Games Played");
+
+        public final String column;
+        public final String displayName;
+        LeaderboardStat(String column, String displayName) {
+            this.column = column;
+            this.displayName = displayName;
+        }
+    }
+
+    /**
+     * Returns the top {@code limit} players sorted by the given stat.
+     * Returns an empty list if the database is unavailable.
+     * <b>Must be called from an async thread.</b>
+     */
+    public java.util.List<PlayerStats> getTopPlayers(LeaderboardStat stat, int limit) {
+        java.util.List<PlayerStats> result = new java.util.ArrayList<>();
+        if (connection == null) return result;
+
+        String sql = "SELECT * FROM " + TABLE + " ORDER BY " + stat.column + " DESC LIMIT ?";
+        try {
+            ensureConnected();
+            try (PreparedStatement ps = connection.prepareStatement(sql)) {
+                ps.setInt(1, limit);
+                ResultSet rs = ps.executeQuery();
+                while (rs.next()) {
+                    result.add(new PlayerStats(
+                        rs.getString(COL_NAME),
+                        rs.getInt(COL_GAMES),
+                        rs.getInt(COL_WINS),
+                        rs.getInt(COL_KILLS),
+                        rs.getInt(COL_FINALS),
+                        rs.getInt(COL_BEDS),
+                        rs.getInt(COL_DEATHS)
+                    ));
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "[Stats] Failed to fetch leaderboard for " + stat.column, e);
+        }
+        return result;
+    }
+
     // ------------------------------------------------------------------ internals
 
     private void upsertStats(UUID uuid, String name, int winsAdd, int killsAdd,
