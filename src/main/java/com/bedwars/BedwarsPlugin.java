@@ -4,6 +4,7 @@ import com.bedwars.commands.BedwarsCommand;
 import com.bedwars.commands.JoinCommand;
 import com.bedwars.game.BedwarsGame;
 import com.bedwars.game.GameManager;
+import com.bedwars.gui.GUIManager;
 import com.bedwars.listeners.BedListener;
 import com.bedwars.listeners.GameListener;
 import com.bedwars.listeners.PlayerListener;
@@ -19,6 +20,7 @@ public class BedwarsPlugin extends JavaPlugin {
     private static BedwarsPlugin instance;
     private GameManager gameManager;
     private ConfigManager configManager;
+    private GUIManager guiManager;
 
     @Override
     public void onEnable() {
@@ -30,6 +32,7 @@ public class BedwarsPlugin extends JavaPlugin {
         // Initialize managers
         configManager = new ConfigManager(this);
         gameManager = new GameManager(this);
+        guiManager = new GUIManager(this);
 
         // Load saved arenas
         loadArenas();
@@ -88,6 +91,7 @@ public class BedwarsPlugin extends JavaPlugin {
         pm.registerEvents(new BedListener(this), this);
         pm.registerEvents(new ShopListener(this), this);
         pm.registerEvents(new GameListener(this), this);
+        pm.registerEvents(guiManager, this); // Handles all GUI inventory + hotbar clicks
     }
 
     public static BedwarsPlugin getInstance() {
@@ -100,5 +104,9 @@ public class BedwarsPlugin extends JavaPlugin {
 
     public ConfigManager getConfigManager() {
         return configManager;
+    }
+
+    public GUIManager getGuiManager() {
+        return guiManager;
     }
 }

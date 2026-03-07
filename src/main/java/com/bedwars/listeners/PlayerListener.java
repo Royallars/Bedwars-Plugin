@@ -153,11 +153,5 @@ public class PlayerListener implements Listener {
         }
     }
 
-    @EventHandler
-    public void onPlayerJoin(PlayerJoinEvent event) {
-        Player player = event.getPlayer();
-        // Give player the join NPC / GUI on join if configured
-        // For now, just send a welcome message
-        MessageUtils.sendMessage(player, "&6Welcome to &lBedWars&r&6! Use &e/bwjoin &6to join a game.");
-    }
+    // PlayerJoinEvent is handled in GUIManager (gives lobby compass + welcome msg)
 }

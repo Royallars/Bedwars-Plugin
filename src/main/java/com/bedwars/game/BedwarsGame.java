@@ -3,6 +3,7 @@ package com.bedwars.game;
 import com.bedwars.BedwarsPlugin;
 import com.bedwars.generators.GeneratorType;
 import com.bedwars.generators.ResourceGenerator;
+import com.bedwars.gui.HotbarManager;
 import com.bedwars.scoreboard.GameScoreboard;
 import com.bedwars.shop.ShopManager;
 import com.bedwars.shop.UpgradeShopManager;
@@ -244,6 +245,7 @@ public class BedwarsGame {
         }
 
         setupPlayerForGame(player, team);
+        HotbarManager.giveIngameItems(player);
 
         MessageUtils.sendTitle(player, "&a&lRESPAWNED!", "", 10, 20, 10);
         MessageUtils.playSound(player, Sound.ENTITY_ENDERMAN_TELEPORT);
@@ -322,6 +324,7 @@ public class BedwarsGame {
                 player.teleport(spawn);
             }
             setupPlayerForGame(player, team);
+            HotbarManager.giveIngameItems(player);
         }
 
         broadcast(MessageUtils.color("&6&lThe game has started! &eMay the best team win!"));
@@ -586,6 +589,8 @@ public class BedwarsGame {
         for (PotionEffect effect : player.getActivePotionEffects()) {
             player.removePotionEffect(effect.getType());
         }
+        // Give compass to open team selector / arena menu
+        HotbarManager.giveWaitingItems(player);
     }
 
     private void setupPlayerForGame(Player player, BedwarsTeam team) {
@@ -617,11 +622,17 @@ public class BedwarsGame {
         player.getInventory().clear();
         player.setHealth(20.0);
         player.setFoodLevel(20);
+        for (PotionEffect effect : player.getActivePotionEffects()) {
+            player.removePotionEffect(effect.getType());
+        }
 
         Location mainLobby = plugin.getConfigManager().getLobbyLocation();
         if (mainLobby != null) {
             player.teleport(mainLobby);
         }
+
+        // Restore lobby hotbar (compass to open arena selector)
+        HotbarManager.giveLobbyItems(player);
         player.sendMessage(MessageUtils.color("&aYou have been sent to the lobby."));
     }
 
