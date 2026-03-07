@@ -1,0 +1,79 @@
+# BedwarsPlugin Configuration
+
+# Lobby settings
+lobby:
+  # Location of the main lobby (set with /bedwars setlobby)
+  world: world
+  x: 0.0
+  y: 64.0
+  z: 0.0
+  yaw: 0.0
+  pitch: 0.0
+
+# Game settings
+game:
+  # Minimum players required to start a game
+  min-players: 2
+  # Countdown before game starts (seconds)
+  countdown: 30
+  # Maximum game time in minutes (0 = unlimited)
+  max-time: 40
+  # Respawn time in seconds (when bed is alive)
+  respawn-time: 5
+  # Whether to allow spectators
+  allow-spectators: true
+
+# Resource generator settings
+generators:
+  # Iron generator
+  iron:
+    # Base spawn delay in ticks (20 ticks = 1 second)
+    delay: 40
+    max-stack: 64
+  # Gold generator
+  gold:
+    delay: 80
+    max-stack: 64
+  # Diamond generator (mid)
+  diamond:
+    delay: 200
+    max-stack: 6
+    upgrade-interval: 600
+  # Emerald generator (mid)
+  emerald:
+    delay: 400
+    max-stack: 4
+
+# Team settings
+teams:
+  max-players-per-team: 4
+
+# Scoreboard
+scoreboard:
+  enabled: true
+  title: "&6&lBED WARS"
+
+# Chat format
+chat:
+  prefix: "&8[&6Bedwars&8] "
+  team-prefix: true
+
+# Messages
+messages:
+  game-starting: "&aGame is starting in &e{time} &aseconds!"
+  game-started: "&6&lThe game has started!"
+  bed-destroyed: "&c&l{team}'s &r&cBED was destroyed by &e{player}&c!"
+  bed-destroyed-no-player: "&c&l{team}'s &r&cBED was destroyed!"
+  player-eliminated: "&7&l{player} &r&7has been eliminated!"
+  final-kill: "&c&l{killer} &r&efinally killed &c&l{victim}&r&e!"
+  team-eliminated: "&c&lTEAM &r&c{team} &r&chas been eliminated!"
+  game-won: "&6&l{team} &r&6has won the game!"
+  player-died-bed-alive: "&c{player} was killed. &aRespawning in &e{time} &aseconds..."
+  player-died-no-bed: "&c{player} &7has been eliminated!"
+  join-game: "&aYou joined the game!"
+  leave-game: "&cYou left the game."
+  not-in-game: "&cYou are not in a game!"
+  already-in-game: "&cYou are already in a game!"
+  game-not-found: "&cGame not found!"
+  game-full: "&cThis game is full!"
+  game-in-progress: "&cThis game is already in progress!"

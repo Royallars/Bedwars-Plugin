@@ -1,0 +1,34 @@
+name: BedwarsPlugin
+version: '${project.version}'
+main: com.bedwars.BedwarsPlugin
+api-version: 1.19
+authors: [BedwarsPlugin]
+description: Hypixel-style Bedwars plugin
+
+commands:
+  bedwars:
+    description: Main Bedwars command
+    aliases: [bw]
+    usage: /bedwars <subcommand>
+    permission: bedwars.admin
+  bwjoin:
+    description: Join a Bedwars game
+    usage: /bwjoin [arena]
+  bwleave:
+    description: Leave current Bedwars game
+    usage: /bwleave
+  bwsetup:
+    description: Setup a Bedwars arena
+    usage: /bwsetup <subcommand>
+    permission: bedwars.setup
+
+permissions:
+  bedwars.admin:
+    description: Allows access to all admin Bedwars commands
+    default: op
+  bedwars.setup:
+    description: Allows setting up Bedwars arenas
+    default: op
+  bedwars.bypass:
+    description: Bypass certain restrictions
+    default: op
