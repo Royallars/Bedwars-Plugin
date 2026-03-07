@@ -3,7 +3,9 @@ package com.bedwars.game;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,6 +28,7 @@ public class BedwarsTeam {
     private int hasteLevel = 0;      // 0-1 (Haste I, Haste II)
     private boolean healPool = false;
     private int trapLevel = 0;       // current trap tier
+    private final Deque<TrapType> trapQueue = new ArrayDeque<>(); // queued purchased traps
 
     public BedwarsTeam(TeamColor color) {
         this.color = color;
@@ -134,6 +137,13 @@ public class BedwarsTeam {
 
     public int getTrapLevel() { return trapLevel; }
     public void setTrapLevel(int level) { this.trapLevel = level; }
+
+    // Trap queue management
+    public void queueTrap(TrapType trap) { trapQueue.addLast(trap); }
+    public TrapType pollTrap() { return trapQueue.pollFirst(); }
+    public boolean hasTraps() { return !trapQueue.isEmpty(); }
+    public int getTrapQueueSize() { return trapQueue.size(); }
+    public Deque<TrapType> getTrapQueue() { return trapQueue; }
 
     /**
      * Get the iron generator delay multiplier based on forge level.

@@ -85,6 +85,15 @@ public class PlayerListener implements Listener {
             return;
         }
 
+        // No PvP during grace period
+        if (game.isInGracePeriod() && event.getDamager() instanceof Player) {
+            event.setCancelled(true);
+            if (event.getDamager() instanceof Player attacker) {
+                MessageUtils.sendMessage(attacker, "&eGrace period is active — PvP not yet enabled!");
+            }
+            return;
+        }
+
         // Prevent friendly fire
         if (event.getDamager() instanceof Player attacker) {
             BedwarsTeam victimTeam = game.getPlayerTeam(victim.getUniqueId());
@@ -143,14 +152,37 @@ public class PlayerListener implements Listener {
         if (game == null) return;
 
         BedwarsTeam team = game.getPlayerTeam(player.getUniqueId());
-        if (team != null) {
-            String format = team.getColor().getChatColor() + "[" + team.getColor().getRawName() + "] "
-                    + "§r" + player.getName() + ": " + event.getMessage();
-            event.setFormat(format);
+        String message = event.getMessage();
 
-            // Only send to players in the same game
-            event.getRecipients().removeIf(recipient -> plugin.getGameManager().getPlayerGame(recipient) != game);
+        // "!" prefix = all-game chat; default = team-only chat
+        boolean allGameChat = message.startsWith("!");
+        String cleanMessage = allGameChat ? message.substring(1).trim() : message;
+
+        if (team != null) {
+            if (allGameChat) {
+                // All players in this game see the message
+                String format = "&7[ALL] " + team.getColor().getChatColor() + "[" + team.getColor().getRawName() + "] "
+                        + "§r" + player.getName() + ": §7" + cleanMessage;
+                event.setFormat(MessageUtils.color(format));
+                event.getRecipients().removeIf(recipient ->
+                        plugin.getGameManager().getPlayerGame(recipient) != game);
+            } else {
+                // Team-only chat
+                String format = team.getColor().getChatColor() + "[" + team.getColor().getRawName() + "] "
+                        + "§r" + player.getName() + ": " + cleanMessage;
+                event.setFormat(format);
+                event.getRecipients().removeIf(recipient -> {
+                    BedwarsTeam recipientTeam = game.getPlayerTeam(recipient.getUniqueId());
+                    return recipientTeam == null || recipientTeam.getColor() != team.getColor();
+                });
+            }
+        } else {
+            // Spectator — can see all game chat but no team prefix
+            event.setFormat("§7[SPEC] §r" + player.getName() + ": " + cleanMessage);
+            event.getRecipients().removeIf(recipient ->
+                    plugin.getGameManager().getPlayerGame(recipient) != game);
         }
+        event.setMessage(cleanMessage);
     }
 
     // PlayerJoinEvent is handled in GUIManager (gives lobby compass + welcome msg)

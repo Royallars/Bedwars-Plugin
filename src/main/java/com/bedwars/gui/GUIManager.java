@@ -240,6 +240,7 @@ public class GUIManager implements Listener {
         // Spectate button
         if (item.getType() == org.bukkit.Material.ENDER_EYE) {
             player.closeInventory();
+            game.setSpectatorMode(player);
             MessageUtils.sendMessage(player, "&bYou are now spectating!");
             return;
         }
@@ -254,28 +255,18 @@ public class GUIManager implements Listener {
             return;
         }
 
-        // Switch team
-        if (currentTeam != null) {
-            currentTeam.removePlayer(player.getUniqueId());
-        }
-
-        BedwarsTeam newTeam = game.getOrCreateTeam(color);
-        int maxPerTeam = game.getMaxPlayers() / Math.max(1, game.getTeams().size());
-        if (newTeam.getSize() >= maxPerTeam) {
+        // Atomic switch — updates both roster and playerTeamMap
+        boolean switched = game.switchPlayerTeam(player.getUniqueId(), color);
+        if (!switched) {
             MessageUtils.sendMessage(player, "&cThat team is full!");
-            teamGUI.open(player, game); // refresh
+            teamGUI.open(player, game);
             return;
         }
 
-        newTeam.addPlayer(player.getUniqueId());
-        // Update player-team map via internal method
-        plugin.getServer().getScheduler().runTask(plugin, () -> {
-            // Refresh the GUI to show updated state
-            teamGUI.open(player, game);
-        });
-
         playClick(player);
         MessageUtils.sendMessage(player, "&aYou joined " + color.getDisplayName() + " &ateam!");
+        // Refresh the GUI to show updated state
+        plugin.getServer().getScheduler().runTask(plugin, () -> teamGUI.open(player, game));
     }
 
     // =====================================================================

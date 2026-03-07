@@ -2,6 +2,7 @@ package com.bedwars.generators;
 
 import com.bedwars.game.BedwarsGame;
 import com.bedwars.game.BedwarsTeam;
+import com.bedwars.utils.MessageUtils;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Entity;
@@ -48,7 +49,8 @@ public class ResourceGenerator {
                     if (tier < 3 && tierTicksElapsed >= DIAMOND_TIER_UPGRADES[tier]) {
                         tier++;
                         currentDelay = DIAMOND_DELAYS[tier - 1];
-                        game.broadcastMessage("&b&lDIAMOND &r&bGENERATOR TIER II UNLOCKED!");
+                        String tierName = type == GeneratorType.EMERALD ? "EMERALD" : "DIAMOND";
+                        game.broadcast(MessageUtils.color("&b&l" + tierName + " &r&bGENERATOR TIER " + tier + " UNLOCKED!"));
                     }
                 }
 

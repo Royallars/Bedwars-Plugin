@@ -10,6 +10,8 @@ import com.bedwars.shop.UpgradeShopManager;
 import com.bedwars.utils.MessageUtils;
 import org.bukkit.*;
 import org.bukkit.block.Block;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.IronGolem;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
@@ -55,6 +57,12 @@ public class BedwarsGame {
     // Track respawning players
     private final Map<UUID, Integer> respawnCountdowns = new HashMap<>();
     private final Map<UUID, BukkitTask> respawnTasks = new HashMap<>();
+
+    // Grace period (first 5 seconds of game — no PvP)
+    private boolean gracePeriod = false;
+
+    // Dream Defenders: golem UUID → owning team
+    private final Map<UUID, BedwarsTeam> dreamDefenders = new HashMap<>();
 
     public BedwarsGame(BedwarsPlugin plugin, String arenaName, World world, int minPlayers, int maxPlayers) {
         this.plugin = plugin;
@@ -303,6 +311,7 @@ public class BedwarsGame {
     public void startGame() {
         state = GameState.PLAYING;
         elapsedSeconds = 0;
+        gracePeriod = true;
 
         // Cancel countdown task
         if (countdownTask != null) countdownTask.cancel();
@@ -334,6 +343,20 @@ public class BedwarsGame {
             MessageUtils.sendTitle(player, "&6&lBED WARS", "&eProtect your bed, destroy theirs!", 10, 60, 10);
             MessageUtils.playSound(player, Sound.ENTITY_ENDER_DRAGON_GROWL, 0.5f, 1.0f);
         }
+
+        // End grace period after 5 seconds
+        int graceDuration = plugin.getConfig().getInt("game.grace-period", 5);
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                gracePeriod = false;
+                broadcast(MessageUtils.color("&c&lGrace period has ended! &rPvP is now enabled!"));
+                for (UUID uuid : getAllPlayers()) {
+                    Player p = Bukkit.getPlayer(uuid);
+                    if (p != null) MessageUtils.playSound(p, Sound.ENTITY_WITHER_SPAWN, 0.5f, 2.0f);
+                }
+            }
+        }.runTaskLater(plugin, graceDuration * 20L);
 
         // Start game timer task
         gameTask = new BukkitRunnable() {
@@ -390,9 +413,67 @@ public class BedwarsGame {
                 }
             }
 
-            // Void damage - if player falls below a certain Y level
-            if (player.getLocation().getY() < -64) {
+            // Void damage
+            int voidY = plugin.getConfig().getInt("game.void-y", -64);
+            if (player.getLocation().getY() < voidY) {
                 player.setHealth(0);
+            }
+        }
+
+        // Trap activation: check every second if an enemy is near a team's spawn
+        for (BedwarsTeam defTeam : teams) {
+            if (!defTeam.hasTraps() || defTeam.getSpawnLocation() == null) continue;
+
+            for (UUID uuid : getAllPlayers()) {
+                Player p = Bukkit.getPlayer(uuid);
+                if (p == null || p.getGameMode() == GameMode.SPECTATOR) continue;
+                BedwarsTeam playerTeam = playerTeamMap.get(uuid);
+                if (playerTeam == null || playerTeam == defTeam) continue; // ignore teammates
+
+                double dist = p.getLocation().distanceSquared(defTeam.getSpawnLocation());
+                if (dist <= 100) { // 10 block radius
+                    TrapType trap = defTeam.pollTrap();
+                    if (trap != null) {
+                        activateTrap(trap, defTeam, p);
+                    }
+                    break; // only trigger once per team per tick
+                }
+            }
+        }
+    }
+
+    private void activateTrap(TrapType trap, BedwarsTeam team, Player trigger) {
+        broadcastToTeam(team, MessageUtils.color(trap.getActivationMessage()));
+        trigger.sendMessage(MessageUtils.color("&c&lTRAP! &r&cYou triggered the " + team.getColor().getDisplayName() + "'s &c" + trap.getDisplayName() + "!"));
+
+        switch (trap) {
+            case ALARM -> {
+                for (UUID uuid : team.getPlayers()) {
+                    Player defender = Bukkit.getPlayer(uuid);
+                    if (defender != null) {
+                        MessageUtils.playSound(defender, Sound.BLOCK_NOTE_BLOCK_BASS, 1.0f, 0.5f);
+                        defender.sendMessage(MessageUtils.color("&c" + trigger.getName() + " is in your base!"));
+                    }
+                }
+            }
+            case COUNTER_OFFENSE -> {
+                for (UUID uuid : team.getPlayers()) {
+                    Player defender = Bukkit.getPlayer(uuid);
+                    if (defender == null) continue;
+                    defender.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 200, 1, true, false));
+                    defender.addPotionEffect(new PotionEffect(PotionEffectType.JUMP, 200, 1, true, false));
+                }
+            }
+            case MINER_FATIGUE -> {
+                trigger.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_DIGGING, 200, 2, true, false));
+                MessageUtils.playSound(trigger, Sound.ENTITY_ELDER_GUARDIAN_CURSE, 1.0f, 1.0f);
+            }
+            case REGEN_BOOST -> {
+                for (UUID uuid : team.getPlayers()) {
+                    Player defender = Bukkit.getPlayer(uuid);
+                    if (defender == null) continue;
+                    defender.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION, 200, 1, true, false));
+                }
             }
         }
     }
@@ -432,6 +513,14 @@ public class BedwarsGame {
 
         scoreboard.updateAll();
 
+        // Show stats 3 seconds after game ends
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                broadcastEndStats();
+            }
+        }.runTaskLater(plugin, 60L);
+
         // Schedule restart
         new BukkitRunnable() {
             @Override
@@ -439,6 +528,37 @@ public class BedwarsGame {
                 resetGame();
             }
         }.runTaskLater(plugin, 200L); // 10 seconds
+    }
+
+    private void broadcastEndStats() {
+        broadcast(MessageUtils.color("&6&m════════════════════════════"));
+        broadcast(MessageUtils.color("         &6&lGAME RESULTS"));
+        broadcast(MessageUtils.color("&6&m════════════════════════════"));
+
+        for (BedwarsTeam team : teams) {
+            String bedStatus = team.isBedAlive() ? "&a✔" : "&c✗";
+            broadcast(MessageUtils.color(team.getColor().getDisplayName() +
+                    " &r&7| Kills: &f" + team.getKills() +
+                    " &7| Finals: &f" + team.getFinalKills() +
+                    " &7| Beds: &f" + team.getBedsDestroyed() +
+                    " &7| Bed: " + bedStatus));
+        }
+
+        broadcast(MessageUtils.color("&6&m════════════════════════════"));
+        broadcast(MessageUtils.color("  &e&lTop Players"));
+
+        playerKills.entrySet().stream()
+                .sorted(Map.Entry.<UUID, Integer>comparingByValue().reversed())
+                .limit(5)
+                .forEach(entry -> {
+                    Player p = Bukkit.getPlayer(entry.getKey());
+                    String name = p != null ? p.getName() : "Unknown";
+                    BedwarsTeam t = playerTeamMap.get(entry.getKey());
+                    String prefix = t != null ? t.getColor().getChatColor().toString() : "§7";
+                    broadcast(MessageUtils.color("  " + prefix + name + " &7- &f" + entry.getValue() + " kills"));
+                });
+
+        broadcast(MessageUtils.color("&6&m════════════════════════════"));
     }
 
     private void endGameByKills() {
@@ -489,6 +609,17 @@ public class BedwarsGame {
                 sendToMainLobby(player);
             }
         }
+
+        // Kill Dream Defenders
+        for (UUID defenderUUID : dreamDefenders.keySet()) {
+            for (Entity e : world.getEntities()) {
+                if (e.getUniqueId().equals(defenderUUID)) {
+                    e.remove();
+                    break;
+                }
+            }
+        }
+        dreamDefenders.clear();
 
         // Clean up placed blocks
         for (Location loc : placedBlocks) {
@@ -656,6 +787,35 @@ public class BedwarsGame {
         return smallest;
     }
 
+    /**
+     * Atomically moves a player from their current team to the given color's team.
+     * Updates both the team roster and the player-team map.
+     * Returns false if the target team is full.
+     */
+    public boolean switchPlayerTeam(UUID uuid, TeamColor newColor) {
+        BedwarsTeam newTeam = getOrCreateTeam(newColor);
+        int maxPerTeam = maxPlayers / Math.max(1, teams.size());
+        if (newTeam.getSize() >= maxPerTeam) return false;
+
+        BedwarsTeam currentTeam = playerTeamMap.get(uuid);
+        if (currentTeam != null) {
+            currentTeam.removePlayer(uuid);
+        }
+        newTeam.addPlayer(uuid);
+        playerTeamMap.put(uuid, newTeam);
+        return true;
+    }
+
+    /** Public entry point to make a player a spectator (e.g. from GUI). */
+    public void setSpectatorMode(Player player) {
+        makeSpectator(player);
+    }
+
+    /** Returns true if the grace period (no-PvP at game start) is active. */
+    public boolean isInGracePeriod() {
+        return gracePeriod;
+    }
+
     public BedwarsTeam getOrCreateTeam(TeamColor color) {
         for (BedwarsTeam team : teams) {
             if (team.getColor() == color) return team;
@@ -783,6 +943,26 @@ public class BedwarsGame {
 
     public boolean isInGame(UUID uuid) {
         return playerTeamMap.containsKey(uuid) || spectators.containsKey(uuid);
+    }
+
+    // ============================================================
+    // DREAM DEFENDER
+    // ============================================================
+
+    public void addDreamDefender(IronGolem golem, BedwarsTeam team) {
+        golem.setCustomName(team.getColor().getDisplayName() + " &rDream Defender");
+        golem.setCustomNameVisible(true);
+        golem.setMaxHealth(100.0);
+        golem.setHealth(100.0);
+        dreamDefenders.put(golem.getUniqueId(), team);
+    }
+
+    public BedwarsTeam getDreamDefenderTeam(UUID uuid) {
+        return dreamDefenders.get(uuid);
+    }
+
+    public boolean isDreamDefender(UUID uuid) {
+        return dreamDefenders.containsKey(uuid);
     }
 
     private record GeneratorLocation(GeneratorType type, Location location, BedwarsTeam team) {}

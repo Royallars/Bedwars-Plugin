@@ -6,11 +6,10 @@ import com.bedwars.game.BedwarsTeam;
 import com.bedwars.game.GameState;
 import com.bedwars.utils.MessageUtils;
 import org.bukkit.GameMode;
+import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.entity.EntityType;
-import org.bukkit.entity.Fireball;
-import org.bukkit.entity.Player;
-import org.bukkit.entity.TNTPrimed;
+import org.bukkit.block.Block;
+import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -18,6 +17,7 @@ import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.entity.*;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.util.Vector;
 
 public class GameListener implements Listener {
 
@@ -68,7 +68,7 @@ public class GameListener implements Listener {
         }
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGH)
     public void onPlayerInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
         BedwarsGame game = plugin.getGameManager().getPlayerGame(player);
@@ -77,25 +77,81 @@ public class GameListener implements Listener {
         ItemStack item = event.getItem();
         if (item == null) return;
 
-        // Handle special items
+        org.bukkit.event.block.Action action = event.getAction();
+        boolean isRightClick = action == org.bukkit.event.block.Action.RIGHT_CLICK_AIR
+                || action == org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK;
+        if (!isRightClick) return;
+
         switch (item.getType()) {
             case FIRE_CHARGE -> {
-                // Fireball
                 event.setCancelled(true);
-                if (item.getAmount() > 1) {
-                    item.setAmount(item.getAmount() - 1);
-                } else {
-                    player.getInventory().removeItem(item);
-                }
+                consumeOne(player, item);
                 Fireball fireball = player.launchProjectile(Fireball.class);
                 fireball.setYield(2);
                 fireball.setIsIncendiary(false);
             }
             case EGG -> {
-                // Bridge Egg (places blocks in a bridge pattern)
-                // Standard bridge egg handled by vanilla
+                // Bridge Egg — place team-colored wool blocks ahead of the player
+                event.setCancelled(true);
+                consumeOne(player, item);
+                placeBridgeEgg(player, game);
             }
-            default -> { /* normal item */ }
+            case IRON_GOLEM_SPAWN_EGG -> {
+                // Dream Defender
+                event.setCancelled(true);
+                consumeOne(player, item);
+                spawnDreamDefender(player, game);
+            }
+        }
+    }
+
+    private void placeBridgeEgg(Player player, BedwarsGame game) {
+        BedwarsTeam team = game.getPlayerTeam(player.getUniqueId());
+        Material wool = team != null ? team.getColor().getWoolMaterial() : Material.WHITE_WOOL;
+
+        // Horizontal direction the player is looking
+        Vector dir = player.getLocation().getDirection().setY(0).normalize();
+        // Start one block below feet so the bridge is walkable
+        Location base = player.getLocation().clone().subtract(0, 1, 0);
+
+        int placed = 0;
+        for (int i = 1; i <= 12 && placed < 12; i++) {
+            Location target = base.clone().add(dir.clone().multiply(i));
+            Block block = target.getBlock();
+            if (block.getType() == Material.AIR || block.isPassable()) {
+                block.setType(wool);
+                game.trackPlacedBlock(target);
+                placed++;
+            }
+        }
+        if (placed > 0) {
+            MessageUtils.sendActionBar(player, MessageUtils.color("&aBridge Egg placed &f" + placed + " &ablocks!"));
+        }
+    }
+
+    private void spawnDreamDefender(Player player, BedwarsGame game) {
+        BedwarsTeam team = game.getPlayerTeam(player.getUniqueId());
+        if (team == null) return;
+
+        Location spawnLoc;
+        Block target = player.getTargetBlockExact(5);
+        if (target != null) {
+            spawnLoc = target.getLocation().add(0, 1, 0);
+        } else {
+            spawnLoc = player.getLocation().add(player.getLocation().getDirection().multiply(2));
+        }
+
+        IronGolem golem = (IronGolem) player.getWorld().spawnEntity(spawnLoc, EntityType.IRON_GOLEM);
+        golem.setPlayerCreated(true);
+        game.addDreamDefender(golem, team);
+        player.sendMessage(MessageUtils.color("&aYou summoned a " + team.getColor().getDisplayName() + " &aDream Defender!"));
+    }
+
+    private void consumeOne(Player player, ItemStack item) {
+        if (item.getAmount() > 1) {
+            item.setAmount(item.getAmount() - 1);
+        } else {
+            player.getInventory().removeItem(item);
         }
     }
 
@@ -132,12 +188,6 @@ public class GameListener implements Listener {
     }
 
     @EventHandler
-    public void onItemSpawn(ItemSpawnEvent event) {
-        // Prevent junk items from spawning
-        // Items dropped on death are already cleared
-    }
-
-    @EventHandler
     public void onEntityDamage(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
 
@@ -157,6 +207,28 @@ public class GameListener implements Listener {
 
     @EventHandler
     public void onEntityTargetPlayer(EntityTargetLivingEntityEvent event) {
+        // Dream Defender: prevent targeting allies and spectators
+        if (event.getEntity() instanceof IronGolem golem) {
+            for (BedwarsGame game : plugin.getGameManager().getGames()) {
+                if (!game.isDreamDefender(golem.getUniqueId())) continue;
+                BedwarsTeam golemTeam = game.getDreamDefenderTeam(golem.getUniqueId());
+                if (event.getTarget() instanceof Player targetPlayer) {
+                    if (game.isSpectator(targetPlayer.getUniqueId()) ||
+                            targetPlayer.getGameMode() == GameMode.SPECTATOR) {
+                        event.setCancelled(true);
+                        return;
+                    }
+                    BedwarsTeam targetTeam = game.getPlayerTeam(targetPlayer.getUniqueId());
+                    if (golemTeam != null && targetTeam != null &&
+                            targetTeam.getColor() == golemTeam.getColor()) {
+                        event.setCancelled(true);
+                    }
+                }
+                return;
+            }
+        }
+
+        // Prevent any mob from targeting spectators
         if (event.getTarget() instanceof Player player) {
             BedwarsGame game = plugin.getGameManager().getPlayerGame(player);
             if (game != null && (game.isSpectator(player.getUniqueId()) ||

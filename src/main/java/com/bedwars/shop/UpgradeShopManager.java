@@ -2,6 +2,7 @@ package com.bedwars.shop;
 
 import com.bedwars.game.BedwarsGame;
 import com.bedwars.game.BedwarsTeam;
+import com.bedwars.game.TrapType;
 import com.bedwars.utils.MessageUtils;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -86,14 +87,17 @@ public class UpgradeShopManager {
         // Heal Pool
         inv.setItem(SLOT_HEAL_POOL, buildHealPoolItem(team));
 
-        // Traps
-        inv.setItem(SLOT_REGEN_TRAP, buildTrapItem("Alarm Trap", Material.TRIPWIRE_HOOK,
-                "&7Alerts your team when", "&7an enemy enters your base.", Material.GOLD_INGOT, 1));
-        inv.setItem(SLOT_COUNTER_OFFENSE, buildTrapItem("Counter-Offensive Trap", Material.FEATHER,
+        // Traps — show queue size
+        int queueSize = team.getTrapQueueSize();
+        String queueNote = queueSize > 0 ? " &8(&e" + queueSize + " queued&8)" : "";
+
+        inv.setItem(SLOT_REGEN_TRAP, buildTrapItem("It's a Trap!" + queueNote, Material.TRIPWIRE_HOOK,
+                "&7Gives your team Regen II", "&7for 10 seconds on trigger.", Material.GOLD_INGOT, 1));
+        inv.setItem(SLOT_COUNTER_OFFENSE, buildTrapItem("Counter-Offensive Trap" + queueNote, Material.FEATHER,
                 "&7Gives your team Speed II", "&7and Jump II for 10 seconds.", Material.GOLD_INGOT, 2));
-        inv.setItem(SLOT_ALARM, buildTrapItem("Alarm Trap", Material.TRIPWIRE_HOOK,
-                "&7Reveals any invisible", "&7enemies in your island.", Material.GOLD_INGOT, 1));
-        inv.setItem(SLOT_MINER_FATIGUE, buildTrapItem("Miner Fatigue Trap", Material.IRON_PICKAXE,
+        inv.setItem(SLOT_ALARM, buildTrapItem("Alarm Trap" + queueNote, Material.TRIPWIRE_HOOK,
+                "&7Alerts your team when", "&7an enemy enters your island.", Material.GOLD_INGOT, 1));
+        inv.setItem(SLOT_MINER_FATIGUE, buildTrapItem("Miner Fatigue Trap" + queueNote, Material.IRON_PICKAXE,
                 "&7Gives Miner Fatigue III", "&7to enemies in your base.", Material.GOLD_INGOT, 2));
 
         player.openInventory(inv);
@@ -223,6 +227,10 @@ public class UpgradeShopManager {
             case SLOT_FORGE -> purchaseForge(player, team);
             case SLOT_HASTE -> purchaseHaste(player, team);
             case SLOT_HEAL_POOL -> purchaseHealPool(player, team);
+            case SLOT_REGEN_TRAP -> purchaseTrap(player, team, TrapType.REGEN_BOOST, 1);
+            case SLOT_COUNTER_OFFENSE -> purchaseTrap(player, team, TrapType.COUNTER_OFFENSE, 2);
+            case SLOT_ALARM -> purchaseTrap(player, team, TrapType.ALARM, 1);
+            case SLOT_MINER_FATIGUE -> purchaseTrap(player, team, TrapType.MINER_FATIGUE, 2);
         }
     }
 
@@ -285,6 +293,24 @@ public class UpgradeShopManager {
         }
         team.setHasteLevel(level + 1);
         game.broadcastToTeam(team, MessageUtils.color("&aYour team unlocked &eManiac Miner Tier " + (level + 1) + "!"));
+    }
+
+    private void purchaseTrap(Player player, BedwarsTeam team, TrapType trap, int goldCost) {
+        if (team.getTrapQueueSize() >= 3) {
+            player.sendMessage(MessageUtils.color("&cYour trap queue is full! (max 3)"));
+            return;
+        }
+        if (!removeGold(player, goldCost)) {
+            player.sendMessage(MessageUtils.color("&cYou need " + goldCost + " gold!"));
+            return;
+        }
+        team.queueTrap(trap);
+        game.broadcastToTeam(team, MessageUtils.color("&aYour team queued a &e" + trap.getDisplayName() +
+                "&a! (&f" + team.getTrapQueueSize() + "&a in queue)"));
+    }
+
+    private boolean removeGold(Player player, int amount) {
+        return removeMaterial(player, Material.GOLD_INGOT, amount);
     }
 
     private void purchaseHealPool(Player player, BedwarsTeam team) {

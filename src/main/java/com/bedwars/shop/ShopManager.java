@@ -162,7 +162,6 @@ public class ShopManager {
             }
         }
 
-        item.setItemMeta(meta);
         meta.setLore(lore);
         item.setItemMeta(meta);
 
