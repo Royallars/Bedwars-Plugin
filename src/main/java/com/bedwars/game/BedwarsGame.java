@@ -628,17 +628,14 @@ public class BedwarsGame {
         }
         placedBlocks.clear();
 
-        // Reset team data
+        // Reset team state — keep spawn/bed locations but clear players/stats/upgrades
         for (BedwarsTeam team : teams) {
-            team.getPlayers().clear();
-            team.getEliminatedPlayers().clear();
             if (!team.isBedAlive()) {
-                // Re-place bed
-                restoreBed(team);
+                restoreBed(team); // physically replace the bed block
             }
+            team.reset(); // clears players, kills, upgrades, traps, restores bedAlive flag
         }
-        // Recreate teams fresh
-        teams.clear();
+        // NOTE: teams list is NOT cleared — the arena configuration stays intact
 
         playerTeamMap.clear();
         playerKills.clear();
@@ -646,6 +643,7 @@ public class BedwarsGame {
         respawnCountdowns.clear();
         respawnTasks.values().forEach(BukkitTask::cancel);
         respawnTasks.clear();
+        gracePeriod = false;
         winner = null;
         elapsedSeconds = 0;
 
@@ -654,14 +652,13 @@ public class BedwarsGame {
         shopManager = new ShopManager(this);
         upgradeShopManager = new UpgradeShopManager(this);
 
-        // Re-register generators from pending locations
+        // Re-register generators from pending locations (preserve original team assignment)
         for (GeneratorLocation gl : pendingGeneratorLocations) {
-            ResourceGenerator gen = new ResourceGenerator(this, gl.location(), gl.type(), null);
+            ResourceGenerator gen = new ResourceGenerator(this, gl.location(), gl.type(), gl.team());
             generators.add(gen);
         }
 
         state = GameState.WAITING;
-        plugin.getConfigManager().loadArenas(); // Reload teams
     }
 
     private void restoreBed(BedwarsTeam team) {
@@ -871,13 +868,10 @@ public class BedwarsGame {
 
     public void addGeneratorLocation(GeneratorType type, Location location, BedwarsTeam team) {
         pendingGeneratorLocations.add(new GeneratorLocation(type, location, team));
+        ResourceGenerator gen = new ResourceGenerator(this, location, type, team);
+        generators.add(gen);
         if (state == GameState.PLAYING) {
-            ResourceGenerator gen = new ResourceGenerator(this, location, type, team);
-            gen.start();
-            generators.add(gen);
-        } else {
-            ResourceGenerator gen = new ResourceGenerator(this, location, type, team);
-            generators.add(gen);
+            gen.start(); // hot-add during a live game
         }
     }
 

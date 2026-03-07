@@ -43,7 +43,10 @@ public class BedListener implements Listener {
             BedwarsTeam bedTeam = game.getTeamByBedLocation(block.getLocation());
             if (bedTeam == null) {
                 // Try the other half of the bed
-                bedTeam = game.getTeamByBedLocation(getOtherBedHalf(block));
+                Block otherHalf = getOtherBedHalf(block);
+                if (otherHalf != null) {
+                    bedTeam = game.getTeamByBedLocation(otherHalf.getLocation());
+                }
             }
 
             if (bedTeam != null) {

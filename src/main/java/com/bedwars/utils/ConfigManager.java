@@ -216,18 +216,23 @@ public class ConfigManager {
     }
 
     private String serializeLocation(Location loc) {
+        if (loc.getWorld() == null) {
+            plugin.getLogger().warning("Serializing location with null world — yaw/pitch omitted");
+        }
         return loc.getX() + "," + loc.getY() + "," + loc.getZ();
     }
 
     private Location deserializeLocation(String str, World world) {
-        String[] parts = str.split(",");
+        if (str == null || str.isBlank()) return null;
+        String[] parts = str.trim().split(",");
         if (parts.length < 3) return null;
         try {
-            double x = Double.parseDouble(parts[0]);
-            double y = Double.parseDouble(parts[1]);
-            double z = Double.parseDouble(parts[2]);
+            double x = Double.parseDouble(parts[0].trim());
+            double y = Double.parseDouble(parts[1].trim());
+            double z = Double.parseDouble(parts[2].trim());
             return new Location(world, x, y, z);
         } catch (NumberFormatException e) {
+            plugin.getLogger().warning("Failed to parse location '" + str + "': " + e.getMessage());
             return null;
         }
     }
@@ -247,6 +252,10 @@ public class ConfigManager {
     }
 
     public void setLobbyLocation(Location location) {
+        if (location.getWorld() == null) {
+            plugin.getLogger().warning("Cannot save lobby location: world is null!");
+            return;
+        }
         plugin.getConfig().set("lobby.world", location.getWorld().getName());
         plugin.getConfig().set("lobby.x", location.getX());
         plugin.getConfig().set("lobby.y", location.getY());

@@ -145,6 +145,29 @@ public class BedwarsTeam {
     public int getTrapQueueSize() { return trapQueue.size(); }
     public Deque<TrapType> getTrapQueue() { return trapQueue; }
 
+    /** Marks the bed as alive again (called on game reset). */
+    public void restoreBed() { this.bedAlive = true; }
+
+    /**
+     * Resets all mutable state so the team can be reused in a new game.
+     * Keeps spawn/bed locations and team color intact.
+     */
+    public void reset() {
+        players.clear();
+        eliminatedPlayers.clear();
+        bedAlive = true;
+        kills = 0;
+        finalKills = 0;
+        bedsDestroyed = 0;
+        sharpenLevel = 0;
+        protectionLevel = 0;
+        forgeLevel = 0;
+        hasteLevel = 0;
+        healPool = false;
+        trapLevel = 0;
+        trapQueue.clear();
+    }
+
     /**
      * Get the iron generator delay multiplier based on forge level.
      * Forge reduces time between iron spawns.

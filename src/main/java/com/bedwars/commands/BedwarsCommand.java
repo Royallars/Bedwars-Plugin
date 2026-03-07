@@ -68,6 +68,14 @@ public class BedwarsCommand implements CommandExecutor, TabCompleter {
                 }
                 setGameLobby(player, args[1]);
             }
+            case "setspectator" -> {
+                if (!(sender instanceof Player player)) return true;
+                if (args.length < 2) {
+                    sender.sendMessage(MessageUtils.color("&cUsage: /bedwars setspectator <arena>"));
+                    return true;
+                }
+                setSpectatorLocation(player, args[1]);
+            }
             case "setspawn" -> {
                 if (!(sender instanceof Player player)) return true;
                 if (args.length < 3) {
@@ -163,8 +171,22 @@ public class BedwarsCommand implements CommandExecutor, TabCompleter {
             return;
         }
         game.setLobbyLocation(player.getLocation());
-        game.setSpectatorLocation(player.getLocation());
+        // Default the spectator location to lobby if not already set
+        if (game.getSpectatorLocation() == null) {
+            game.setSpectatorLocation(player.getLocation());
+        }
         player.sendMessage(MessageUtils.color("&aGame lobby set for arena &e" + arenaName + "&a!"));
+        player.sendMessage(MessageUtils.color("&7Tip: Use &e/bedwars setspectator " + arenaName + " &7to set a separate spectator view."));
+    }
+
+    private void setSpectatorLocation(Player player, String arenaName) {
+        BedwarsGame game = plugin.getGameManager().getGame(arenaName);
+        if (game == null) {
+            player.sendMessage(MessageUtils.color("&cArena not found: " + arenaName));
+            return;
+        }
+        game.setSpectatorLocation(player.getLocation());
+        player.sendMessage(MessageUtils.color("&aSpectator location set for arena &e" + arenaName + "&a!"));
     }
 
     private void setTeamSpawn(Player player, String arenaName, String teamName) {

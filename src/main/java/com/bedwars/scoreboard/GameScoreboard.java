@@ -9,7 +9,9 @@ import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.scoreboard.*;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -31,9 +33,15 @@ public class GameScoreboard {
         }
     }
 
+    /** Returns a new blank Scoreboard, or null if the manager isn't available. */
+    private static Scoreboard newScoreboard() {
+        ScoreboardManager manager = Bukkit.getScoreboardManager();
+        return manager != null ? manager.getNewScoreboard() : null;
+    }
+
     public void update(Player player) {
-        Scoreboard scoreboard = playerScoreboards.computeIfAbsent(player.getUniqueId(),
-                k -> Bukkit.getScoreboardManager().getNewScoreboard());
+        Scoreboard scoreboard = playerScoreboards.computeIfAbsent(player.getUniqueId(), k -> newScoreboard());
+        if (scoreboard == null) return; // scoreboard manager not ready yet
 
         Objective objective = scoreboard.getObjective("bedwars");
         if (objective == null) {
@@ -136,20 +144,24 @@ public class GameScoreboard {
     public void removePlayer(UUID uuid) {
         Player player = Bukkit.getPlayer(uuid);
         if (player != null && player.isOnline()) {
-            player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
+            ScoreboardManager manager = Bukkit.getScoreboardManager();
+            if (manager != null) {
+                player.setScoreboard(manager.getMainScoreboard());
+            }
         }
         playerScoreboards.remove(uuid);
     }
 
     public void cleanup() {
-        for (UUID uuid : playerScoreboards.keySet()) {
-            removePlayer(uuid);
-        }
+        // Copy to avoid ConcurrentModificationException since removePlayer() modifies the map
+        List<UUID> uuids = new ArrayList<>(playerScoreboards.keySet());
+        uuids.forEach(this::removePlayer);
         playerScoreboards.clear();
     }
 
     public void setupLobbyScoreboard(Player player) {
-        Scoreboard scoreboard = Bukkit.getScoreboardManager().getNewScoreboard();
+        Scoreboard scoreboard = newScoreboard();
+        if (scoreboard == null) return;
         Objective objective = scoreboard.registerNewObjective("lobby", Criteria.DUMMY,
                 MessageUtils.color("&6&lBED WARS"));
         objective.setDisplaySlot(DisplaySlot.SIDEBAR);
