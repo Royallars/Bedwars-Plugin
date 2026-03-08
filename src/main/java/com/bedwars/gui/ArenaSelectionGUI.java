@@ -143,7 +143,7 @@ public class ArenaSelectionGUI {
         String displayName = item.getItemMeta().getDisplayName();
         if (displayName == null || displayName.isBlank()) return null;
         // Strip color codes
-        String plain = displayName.replaceAll("§[0-9a-fklmnor]", "").trim();
+        String plain = displayName.replaceAll("§[0-9a-fA-Fklmnor]", "").trim();
         return plain;
     }
 }

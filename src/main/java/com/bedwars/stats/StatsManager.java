@@ -37,7 +37,7 @@ public class StatsManager {
     private static final String TABLE = "bedwars_stats";
 
     private final BedwarsPlugin plugin;
-    private Connection connection;
+    private volatile Connection connection;
     private boolean useMysql;
 
     public StatsManager(BedwarsPlugin plugin) {

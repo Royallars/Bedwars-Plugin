@@ -24,7 +24,7 @@ public class BedwarsTeam {
     // Upgrades
     private int sharpenLevel = 0;    // 0-4 (levels 1-5 of Sharpness)
     private int protectionLevel = 0; // 0-3 (levels 1-4 of Protection)
-    private int forgeLevel = 0;      // 0-3 (4 tiers: Iron Forge, Golden Forge, Emerald Forge, Molten Forge)
+    private int forgeLevel = 0;      // 0-4 (0=none, 1=Iron, 2=Golden, 3=Emerald, 4=Molten Forge)
     private int hasteLevel = 0;      // 0-1 (Haste I, Haste II)
     private boolean healPool = false;
     private int trapLevel = 0;       // current trap tier
@@ -176,7 +176,8 @@ public class BedwarsTeam {
         return switch (forgeLevel) {
             case 1 -> 0.75; // Iron Forge: 25% faster
             case 2 -> 0.5;  // Golden Forge: 50% faster
-            case 3 -> 0.25; // Emerald Forge: 75% faster (emergency refill)
+            case 3 -> 0.25; // Emerald Forge: 75% faster
+            case 4 -> 0.1;  // Molten Forge: 90% faster
             default -> 1.0;
         };
     }

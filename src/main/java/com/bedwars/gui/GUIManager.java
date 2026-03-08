@@ -326,8 +326,8 @@ public class GUIManager implements Listener {
         org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
         if (meta == null) return;
 
-        // Resolve target name from skull meta
-        if (item.getItemMeta() instanceof org.bukkit.inventory.meta.SkullMeta skullMeta) {
+        // Resolve target name from skull meta (use cached meta to avoid double call)
+        if (meta instanceof org.bukkit.inventory.meta.SkullMeta skullMeta) {
             org.bukkit.OfflinePlayer owner = skullMeta.getOwningPlayer();
             if (owner == null) return;
             Player target = Bukkit.getPlayer(owner.getUniqueId());

@@ -1213,7 +1213,9 @@ public class BedwarsGame {
         List<UUID> overflow = new ArrayList<>();
         for (BedwarsTeam team : teams) {
             while (team.getSize() > maxPerTeam) {
-                UUID moved = team.getPlayers().get(team.getSize() - 1);
+                List<UUID> players = new ArrayList<>(team.getPlayers());
+                if (players.isEmpty()) break;
+                UUID moved = players.get(players.size() - 1);
                 team.removePlayer(moved);
                 playerTeamMap.remove(moved);
                 overflow.add(moved);

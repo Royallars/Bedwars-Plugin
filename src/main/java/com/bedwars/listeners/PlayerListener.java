@@ -65,8 +65,9 @@ public class PlayerListener implements Listener {
 
     private String formatWeaponName(ItemStack weapon) {
         if (weapon == null || weapon.getType() == Material.AIR) return null;
-        if (weapon.hasItemMeta() && weapon.getItemMeta().hasDisplayName()) {
-            return weapon.getItemMeta().getDisplayName();
+        org.bukkit.inventory.meta.ItemMeta weaponMeta = weapon.getItemMeta();
+        if (weaponMeta != null && weaponMeta.hasDisplayName()) {
+            return weaponMeta.getDisplayName();
         }
         String raw = weapon.getType().name().replace('_', ' ').toLowerCase();
         StringBuilder sb = new StringBuilder();

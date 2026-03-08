@@ -141,7 +141,11 @@ public class GameListener implements Listener {
             spawnLoc = player.getLocation().add(player.getLocation().getDirection().multiply(2));
         }
 
-        IronGolem golem = (IronGolem) player.getWorld().spawnEntity(spawnLoc, EntityType.IRON_GOLEM);
+        Entity spawned = player.getWorld().spawnEntity(spawnLoc, EntityType.IRON_GOLEM);
+        if (!(spawned instanceof IronGolem golem)) {
+            spawned.remove();
+            return;
+        }
         golem.setPlayerCreated(true);
         game.addDreamDefender(golem, team);
         player.sendMessage(MessageUtils.color("&aYou summoned a " + team.getColor().getDisplayName() + " &aDream Defender!"));
@@ -239,6 +243,7 @@ public class GameListener implements Listener {
     }
 
     private BedwarsGame getGameAtLocation(org.bukkit.Location location) {
+        if (location.getWorld() == null) return null;
         for (BedwarsGame game : plugin.getGameManager().getGames()) {
             if (game.getWorld().equals(location.getWorld())) {
                 return game;

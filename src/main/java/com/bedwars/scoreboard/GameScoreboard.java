@@ -17,6 +17,8 @@ import java.util.UUID;
 
 public class GameScoreboard {
 
+    private static final ChatColor[] CHAT_COLORS = ChatColor.values();
+
     private final BedwarsGame game;
     private final Map<UUID, Scoreboard> playerScoreboards = new HashMap<>();
 
@@ -126,7 +128,7 @@ public class GameScoreboard {
     private void setLine(Objective objective, int score, String text) {
         if (score < 0) return;
         // Pad to make unique
-        String entry = text + ChatColor.values()[score % ChatColor.values().length].toString() + ChatColor.RESET;
+        String entry = text + CHAT_COLORS[score % CHAT_COLORS.length].toString() + ChatColor.RESET;
         Score s = objective.getScore(entry);
         s.setScore(score);
     }

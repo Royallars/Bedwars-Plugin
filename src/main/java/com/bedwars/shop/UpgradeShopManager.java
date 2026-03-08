@@ -31,7 +31,7 @@ public class UpgradeShopManager {
     // Costs in diamonds
     private static final int[] SHARPNESS_COSTS = {4, 8, 16, 32};
     private static final int[] PROTECTION_COSTS = {4, 8, 16};
-    private static final int[] FORGE_COSTS = {4, 8, 16};
+    private static final int[] FORGE_COSTS = {4, 8, 16, 32};
     private static final int[] HASTE_COSTS = {2, 4};
     private static final int HEAL_POOL_COST = 1; // emerald
 
@@ -266,11 +266,11 @@ public class UpgradeShopManager {
 
     private void purchaseForge(Player player, BedwarsTeam team) {
         int level = team.getForgeLevel();
-        if (level >= 3) {
+        if (level >= 4) {
             player.sendMessage(MessageUtils.color("&cForge is already at max level!"));
             return;
         }
-        int cost = FORGE_COSTS[level];
+        int cost = FORGE_COSTS[Math.min(level, FORGE_COSTS.length - 1)];
         if (!removeDiamonds(player, cost)) {
             player.sendMessage(MessageUtils.color("&cYou need " + cost + " diamonds!"));
             return;

@@ -68,7 +68,7 @@ public class HotbarManager {
     private static boolean hasDisplayName(ItemStack item, String name) {
         ItemMeta meta = item.getItemMeta();
         return meta != null && meta.hasDisplayName() &&
-                meta.getDisplayName().replaceAll("§[0-9a-fklmnor]", "").contains(name);
+                meta.getDisplayName().replaceAll("§[0-9a-fA-Fklmnor]", "").contains(name);
     }
 
     private static ItemStack buildItem(Material material, String name, List<String> lore) {
