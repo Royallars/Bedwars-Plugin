@@ -247,6 +247,7 @@ public class UpgradeShopManager {
         }
         team.setSharpenLevel(level + 1);
         game.broadcastToTeam(team, MessageUtils.color("&aYour team unlocked &eSharpened Swords Tier " + (level + 1) + "!"));
+        game.applyUpgradesToTeam(team);
     }
 
     private void purchaseProtection(Player player, BedwarsTeam team) {
@@ -262,6 +263,7 @@ public class UpgradeShopManager {
         }
         team.setProtectionLevel(level + 1);
         game.broadcastToTeam(team, MessageUtils.color("&aYour team unlocked &eReinforced Armor Tier " + (level + 1) + "!"));
+        game.applyUpgradesToTeam(team);
     }
 
     private void purchaseForge(Player player, BedwarsTeam team) {

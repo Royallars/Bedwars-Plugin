@@ -10,13 +10,17 @@ import com.bedwars.shop.UpgradeShopManager;
 import com.bedwars.utils.MessageUtils;
 import org.bukkit.*;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
+import org.bukkit.block.data.type.Bed;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Firework;
 import org.bukkit.entity.IronGolem;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.FireworkMeta;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -58,6 +62,9 @@ public class BedwarsGame {
     private BukkitTask scoreboardTask;
     private BukkitTask compassTask;
     private BukkitTask hudTask;
+    private BukkitTask tablistTask;
+
+    private boolean suddenDeathTriggered = false;
 
     // Track respawning players
     private final Map<UUID, Integer> respawnCountdowns = new HashMap<>();
@@ -435,6 +442,12 @@ public class BedwarsGame {
                     }
                 }
 
+                // Sudden death: destroy all remaining beds at the 20-minute mark
+                int suddenDeathSeconds = plugin.getConfig().getInt("game.sudden-death-time", 1200);
+                if (!suddenDeathTriggered && elapsedSeconds >= suddenDeathSeconds) {
+                    triggerSuddenDeath();
+                }
+
                 // Update scoreboard every 5 seconds
                 if (elapsedSeconds % 5 == 0) {
                     scoreboard.updateAll();
@@ -496,6 +509,14 @@ public class BedwarsGame {
                 }
             }
         }.runTaskTimer(plugin, 20L, 20L);
+
+        // Tab-list header/footer task — update every 2 seconds
+        tablistTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                updateTabList();
+            }
+        }.runTaskTimer(plugin, 0L, 40L);
     }
 
     private void applyOngoingEffects() {
@@ -609,6 +630,7 @@ public class BedwarsGame {
         if (scoreboardTask != null) scoreboardTask.cancel();
         if (compassTask != null) compassTask.cancel();
         if (hudTask != null) hudTask.cancel();
+        if (tablistTask != null) { tablistTask.cancel(); tablistTask = null; }
 
         // Announce winner
         broadcast(MessageUtils.color("&6&l" + (winnerTeam != null ? winnerTeam.getColor().getDisplayName() : "&7Nobody") + " &r&6has won the game!"));
@@ -630,6 +652,26 @@ public class BedwarsGame {
         }
 
         scoreboard.updateAll();
+
+        // Spawn celebration fireworks for the winning team
+        if (winnerTeam != null) {
+            final BedwarsTeam fwTeam = winnerTeam;
+            new BukkitRunnable() {
+                int shots = 0;
+                @Override
+                public void run() {
+                    if (shots++ >= 12) { cancel(); return; }
+                    for (UUID uid : fwTeam.getPlayers()) {
+                        Player p = Bukkit.getPlayer(uid);
+                        if (p != null && p.isOnline()) {
+                            spawnCelebrationFirework(p.getLocation().add(0, 1, 0), fwTeam.getColor());
+                        }
+                    }
+                    Location spawn = fwTeam.getSpawnLocation();
+                    if (spawn != null) spawnCelebrationFirework(spawn.clone().add(0, 2, 0), fwTeam.getColor());
+                }
+            }.runTaskTimer(plugin, 0L, 10L);
+        }
 
         // Record persistent stats
         plugin.getStatsManager().recordGameEnd(this, winnerTeam);
@@ -772,8 +814,16 @@ public class BedwarsGame {
         respawnTasks.values().forEach(BukkitTask::cancel);
         respawnTasks.clear();
         gracePeriod = false;
+        suddenDeathTriggered = false;
         winner = null;
         elapsedSeconds = 0;
+
+        // Cancel tab-list task and reset player list names
+        if (tablistTask != null) { tablistTask.cancel(); tablistTask = null; }
+        for (UUID uid : playerTeamMap.keySet()) {
+            Player p = Bukkit.getPlayer(uid);
+            if (p != null) p.setPlayerListName(null); // reset to default name
+        }
 
         scoreboard.cleanup();
         scoreboard = new GameScoreboard(this);
@@ -1259,6 +1309,147 @@ public class BedwarsGame {
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = (password == null || password.isEmpty()) ? null : password; }
     public boolean checkPassword(String attempt) { return !hasPassword() || password.equals(attempt); }
+
+    // ============================================================
+    // FEATURE: SUDDEN DEATH
+    // ============================================================
+
+    /** Destroys all remaining beds and announces sudden death mode. */
+    private void triggerSuddenDeath() {
+        suddenDeathTriggered = true;
+        broadcast(MessageUtils.color("&4&l☠ SUDDEN DEATH! ☠ &r&cAll beds have been destroyed!"));
+        for (UUID uid : getAllPlayers()) {
+            Player p = Bukkit.getPlayer(uid);
+            if (p != null) {
+                MessageUtils.sendTitle(p, "&4&l☠ SUDDEN DEATH ☠", "&cAll beds have been destroyed!", 10, 60, 10);
+                MessageUtils.playSound(p, Sound.ENTITY_WITHER_SPAWN, 1.0f, 0.5f);
+            }
+        }
+        for (BedwarsTeam team : teams) {
+            if (!team.isBedAlive()) continue;
+            // Physically remove bed blocks
+            Location bedLoc = team.getBedLocation();
+            if (bedLoc != null) {
+                Block block = bedLoc.getBlock();
+                if (block.getType().name().endsWith("_BED")) {
+                    if (block.getBlockData() instanceof Bed bedData) {
+                        BlockFace facing = bedData.getFacing();
+                        Block otherHalf = bedData.getPart() == Bed.Part.FOOT
+                                ? block.getRelative(facing) : block.getRelative(facing.getOppositeFace());
+                        if (otherHalf.getType().name().endsWith("_BED")) otherHalf.setType(Material.AIR);
+                    }
+                    block.setType(Material.AIR);
+                }
+            }
+            // Trigger bed destroy logic (notifications, scoreboard, etc.)
+            destroyBed(team, null);
+        }
+        scoreboard.updateAll();
+    }
+
+    // ============================================================
+    // FEATURE: APPLY UPGRADES TO EXISTING INVENTORY
+    // ============================================================
+
+    /**
+     * Re-enchants all swords/armor in every team member's inventory to match
+     * the team's current sharpness and protection upgrade levels.
+     * Call this after a team purchases a sharpness or protection upgrade.
+     */
+    public void applyUpgradesToTeam(BedwarsTeam team) {
+        for (UUID uuid : team.getPlayers()) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p == null || !p.isOnline()) continue;
+            applyUpgradesToPlayer(p, team);
+        }
+    }
+
+    private void applyUpgradesToPlayer(Player player, BedwarsTeam team) {
+        // Main inventory
+        ItemStack[] contents = player.getInventory().getContents();
+        for (ItemStack item : contents) {
+            if (item == null) continue;
+            boolean changed = false;
+            ItemMeta meta = item.getItemMeta();
+            if (meta == null) continue;
+            if (item.getType().name().endsWith("_SWORD") && team.getSharpenLevel() > 0) {
+                meta.addEnchant(Enchantment.DAMAGE_ALL, team.getSharpenLevel(), true);
+                changed = true;
+            }
+            if (isArmorType(item.getType()) && team.getProtectionLevel() > 0) {
+                meta.addEnchant(Enchantment.PROTECTION_ENVIRONMENTAL, team.getProtectionLevel(), true);
+                changed = true;
+            }
+            if (changed) item.setItemMeta(meta);
+        }
+        // Armor slots
+        ItemStack[] armor = player.getInventory().getArmorContents();
+        for (ItemStack item : armor) {
+            if (item == null) continue;
+            if (isArmorType(item.getType()) && team.getProtectionLevel() > 0) {
+                ItemMeta meta = item.getItemMeta();
+                if (meta != null) {
+                    meta.addEnchant(Enchantment.PROTECTION_ENVIRONMENTAL, team.getProtectionLevel(), true);
+                    item.setItemMeta(meta);
+                }
+            }
+        }
+    }
+
+    private boolean isArmorType(Material mat) {
+        String name = mat.name();
+        return name.endsWith("_CHESTPLATE") || name.endsWith("_LEGGINGS")
+                || name.endsWith("_BOOTS") || name.endsWith("_HELMET");
+    }
+
+    // ============================================================
+    // FEATURE: TAB LIST
+    // ============================================================
+
+    /**
+     * Updates each player's tab-list name to show their team color prefix.
+     * Uses setPlayerListName which is available in all Spigot versions.
+     */
+    private void updateTabList() {
+        for (UUID uuid : getAllPlayers()) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p == null || !p.isOnline()) continue;
+            BedwarsTeam team = playerTeamMap.get(uuid);
+            if (team != null) {
+                String bedIcon = team.isBedAlive() ? "§a✔" : "§c✗";
+                p.setPlayerListName(team.getColor().getChatColor() + "[" + team.getColor().getRawName() + "] "
+                        + "§r" + p.getName() + " " + bedIcon);
+            } else if (spectators.containsKey(uuid)) {
+                p.setPlayerListName("§7[SPEC] §r" + p.getName());
+            }
+        }
+    }
+
+    private String formatTime(int seconds) {
+        return String.format("%02d:%02d", seconds / 60, seconds % 60);
+    }
+
+    // ============================================================
+    // FEATURE: CELEBRATION FIREWORK
+    // ============================================================
+
+    /** Spawns a single firework at the given location in the team's color. */
+    private void spawnCelebrationFirework(Location loc, TeamColor color) {
+        World w = loc.getWorld();
+        if (w == null) return;
+        Firework fw = (Firework) w.spawnEntity(loc, EntityType.FIREWORK_ROCKET);
+        FireworkMeta meta = fw.getFireworkMeta();
+        meta.setPower(1);
+        FireworkEffect.Type fwType = (Math.random() < 0.5) ? FireworkEffect.Type.BALL_LARGE : FireworkEffect.Type.STAR;
+        meta.addEffect(FireworkEffect.builder()
+                .withColor(color.getFireworkColor())
+                .withFade(org.bukkit.Color.WHITE)
+                .with(fwType)
+                .trail(true)
+                .flicker(true)
+                .build());
+        fw.setFireworkMeta(meta);
+    }
 
     private record GeneratorLocation(GeneratorType type, Location location, BedwarsTeam team) {}
 }
