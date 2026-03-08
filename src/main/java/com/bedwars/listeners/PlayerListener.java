@@ -5,6 +5,7 @@ import com.bedwars.game.BedwarsGame;
 import com.bedwars.game.BedwarsTeam;
 import com.bedwars.game.GameState;
 import com.bedwars.utils.MessageUtils;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -14,6 +15,7 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.*;
+import org.bukkit.inventory.ItemStack;
 
 public class PlayerListener implements Listener {
 
@@ -46,8 +48,34 @@ public class PlayerListener implements Listener {
         // Determine killer
         Player killer = player.getKiller();
 
+        // Feature 8: Detailed Death Message — include weapon info
+        if (killer != null) {
+            ItemStack weapon = killer.getInventory().getItemInHand();
+            String weaponName = formatWeaponName(weapon);
+            BedwarsTeam team = game.getPlayerTeam(player.getUniqueId());
+            String teamPrefix = team != null ? team.getColor().getChatColor().toString() : "§7";
+            game.broadcast(MessageUtils.color("&8[☠] " + teamPrefix + player.getName()
+                    + " &7was killed by &e" + killer.getName()
+                    + (weaponName != null ? " &7using &f" + weaponName : "") + "&7!"));
+        }
+
         // Handle the death in game logic
         game.handleDeath(player, killer);
+    }
+
+    private String formatWeaponName(ItemStack weapon) {
+        if (weapon == null || weapon.getType() == Material.AIR) return null;
+        if (weapon.hasItemMeta() && weapon.getItemMeta().hasDisplayName()) {
+            return weapon.getItemMeta().getDisplayName();
+        }
+        String raw = weapon.getType().name().replace('_', ' ').toLowerCase();
+        StringBuilder sb = new StringBuilder();
+        for (String word : raw.split(" ")) {
+            if (!word.isEmpty()) {
+                sb.append(Character.toUpperCase(word.charAt(0))).append(word.substring(1)).append(' ');
+            }
+        }
+        return sb.toString().trim();
     }
 
     @EventHandler(priority = EventPriority.HIGH)
@@ -67,6 +95,12 @@ public class PlayerListener implements Listener {
 
         // Spectators take no damage
         if (game.isSpectator(player.getUniqueId())) {
+            event.setCancelled(true);
+            return;
+        }
+
+        // Feature 2: Spawn Shield — ignore damage while shielded
+        if (game.hasSpawnShield(player.getUniqueId())) {
             event.setCancelled(true);
         }
     }

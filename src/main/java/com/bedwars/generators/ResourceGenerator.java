@@ -3,7 +3,7 @@ package com.bedwars.generators;
 import com.bedwars.game.BedwarsGame;
 import com.bedwars.game.BedwarsTeam;
 import com.bedwars.utils.MessageUtils;
-import org.bukkit.EntityType;
+import org.bukkit.entity.EntityType;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.ArmorStand;
@@ -159,5 +159,10 @@ public class ResourceGenerator {
 
     public void setCurrentDelay(int delay) {
         this.currentDelay = delay;
+    }
+
+    /** Feature 6: Rush Mode — halve the generator delay for 2x speed. */
+    public void applyRushMode() {
+        this.currentDelay = Math.max(10, this.currentDelay / 2);
     }
 }

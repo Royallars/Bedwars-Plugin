@@ -14,7 +14,7 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
-import org.jetbrains.annotations.NotNull;
+
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,8 +29,8 @@ public class BedwarsCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command,
-                              @NotNull String label, @NotNull String[] args) {
+    public boolean onCommand(CommandSender sender, Command command,
+                              String label, String[] args) {
         if (!sender.hasPermission("bedwars.admin")) {
             sender.sendMessage(MessageUtils.color("&cYou don't have permission!"));
             return true;
@@ -130,6 +130,30 @@ public class BedwarsCommand implements CommandExecutor, TabCompleter {
                 arenaInfo(sender, args[1]);
             }
             case "reload" -> reloadPlugin(sender);
+            // Feature 10: Private Game Password
+            case "setpassword" -> {
+                if (args.length < 2) {
+                    sender.sendMessage(MessageUtils.color("&cUsage: /bedwars setpassword <arena> [password]"));
+                    return true;
+                }
+                BedwarsGame pg = plugin.getGameManager().getGame(args[1]);
+                if (pg == null) { sender.sendMessage(MessageUtils.color("&cArena not found: " + args[1])); return true; }
+                String pw = args.length >= 3 ? args[2] : null;
+                pg.setPassword(pw);
+                if (pw == null) sender.sendMessage(MessageUtils.color("&aPassword removed from &e" + args[1]));
+                else sender.sendMessage(MessageUtils.color("&aPassword set for &e" + args[1] + "&a: &f" + pw));
+            }
+            // Feature 6: Rush Mode toggle
+            case "setrush" -> {
+                if (args.length < 2) {
+                    sender.sendMessage(MessageUtils.color("&cUsage: /bedwars setrush <arena>"));
+                    return true;
+                }
+                BedwarsGame rg = plugin.getGameManager().getGame(args[1]);
+                if (rg == null) { sender.sendMessage(MessageUtils.color("&cArena not found: " + args[1])); return true; }
+                rg.setRushMode(!rg.isRushMode());
+                sender.sendMessage(MessageUtils.color(rg.isRushMode() ? "&aRush Mode &2ENABLED &afor &e" + args[1] : "&cRush Mode &4DISABLED &cfor &e" + args[1]));
+            }
             default -> sendHelp(sender);
         }
 
@@ -336,16 +360,19 @@ public class BedwarsCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(MessageUtils.color("&e/bw list &7- List arenas"));
         sender.sendMessage(MessageUtils.color("&e/bw info <arena> &7- Arena info"));
         sender.sendMessage(MessageUtils.color("&e/bw reload &7- Reload config"));
+        sender.sendMessage(MessageUtils.color("&e/bw setpassword <arena> [pw] &7- Set/remove private game password"));
+        sender.sendMessage(MessageUtils.color("&e/bw setrush <arena> &7- Toggle rush mode (2x generators)"));
     }
 
     @Override
-    public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
-                                       @NotNull String alias, @NotNull String[] args) {
+    public List<String> onTabComplete(CommandSender sender, Command command,
+                                       String alias, String[] args) {
         List<String> completions = new ArrayList<>();
 
         if (args.length == 1) {
             completions.addAll(Arrays.asList("create", "setlobby", "setgamelobby", "setspawn",
-                    "setbed", "addgenerator", "save", "start", "stop", "list", "info", "reload"));
+                    "setbed", "addgenerator", "save", "start", "stop", "list", "info", "reload",
+                    "setpassword", "setrush"));
         } else if (args.length == 2) {
             switch (args[0].toLowerCase()) {
                 case "setgamelobby", "setspawn", "setbed", "addgenerator", "save", "start", "stop", "info" ->

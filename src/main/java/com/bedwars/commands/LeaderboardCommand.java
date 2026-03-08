@@ -8,7 +8,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
-import org.jetbrains.annotations.NotNull;
+
 
 import java.util.Arrays;
 import java.util.List;
@@ -29,8 +29,8 @@ public class LeaderboardCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command,
-                             @NotNull String label, @NotNull String[] args) {
+    public boolean onCommand(CommandSender sender, Command command,
+                             String label, String[] args) {
 
         LeaderboardStat stat = LeaderboardStat.WINS; // default
 
@@ -83,8 +83,8 @@ public class LeaderboardCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
-                                      @NotNull String alias, @NotNull String[] args) {
+    public List<String> onTabComplete(CommandSender sender, Command command,
+                                      String alias, String[] args) {
         if (args.length == 1) {
             return Arrays.stream(LeaderboardStat.values())
                     .map(s -> s.name().toLowerCase())

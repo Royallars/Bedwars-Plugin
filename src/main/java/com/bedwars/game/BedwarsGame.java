@@ -72,6 +72,18 @@ public class BedwarsGame {
     // Dream Defenders: golem UUID → owning team
     private final Map<UUID, BedwarsTeam> dreamDefenders = new HashMap<>();
 
+    // Feature: Spawn Shield — players who just respawned get 3s invincibility
+    private final Set<UUID> spawnShieldPlayers = new HashSet<>();
+
+    // Feature: Rush Mode — all generators run at 2x speed
+    private boolean rushMode = false;
+
+    // Feature: Private Game Password (null = no password)
+    private String password = null;
+
+    // Feature: Bed Guard — track guard blocks placed around beds
+    private final Set<Location> bedGuardBlocks = new HashSet<>();
+
     public BedwarsGame(BedwarsPlugin plugin, String arenaName, World world, int minPlayers, int maxPlayers) {
         this.plugin = plugin;
         this.arenaName = arenaName;
@@ -169,6 +181,8 @@ public class BedwarsGame {
 
             MessageUtils.sendTitle(killer, "&6&lFINAL KILL", "&e+" + 1 + " Kill", 10, 40, 10);
             MessageUtils.playSound(killer, Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.5f);
+            // Feature 1: Kill Rewards — final kill gives gold + iron
+            giveKillReward(killer, true);
         } else {
             broadcast(MessageUtils.color("&7&l" + player.getName() + " &r&7was eliminated!"));
         }
@@ -214,6 +228,8 @@ public class BedwarsGame {
             playerKills.merge(killer.getUniqueId(), 1, Integer::sum);
             int streak = killStreaks.merge(killer.getUniqueId(), 1, Integer::sum);
             announceKillStreak(killer, streak);
+            // Feature 1: Kill Rewards — regular kill gives iron
+            giveKillReward(killer, false);
         }
 
         // Reset victim's kill streak
@@ -273,9 +289,11 @@ public class BedwarsGame {
         setupPlayerForGame(player, team);
         HotbarManager.giveIngameItems(player);
 
-        MessageUtils.sendTitle(player, "&a&lRESPAWNED!", "", 10, 20, 10);
+        MessageUtils.sendTitle(player, "&a&lRESPAWNED!", "&b✦ Spawn Shield active for 3s", 10, 20, 10);
         MessageUtils.playSound(player, Sound.ENTITY_ENDERMAN_TELEPORT);
         scoreboard.update(player);
+        // Feature 2: Spawn Shield — 3-second damage immunity after respawn
+        activateSpawnShield(player);
     }
 
     // ============================================================
@@ -334,8 +352,20 @@ public class BedwarsGame {
         // Cancel countdown task
         if (countdownTask != null) countdownTask.cancel();
 
-        // Start resource generators
+        // Feature 7: Auto Team Balance — spread out lone players
+        autoBalanceTeams();
+
+        // Feature 9: Bed Guard — place protective wool around beds
+        placeBedGuardBlocks();
+
+        // Feature 6: Rush Mode announcement
+        if (rushMode) {
+            broadcast(MessageUtils.color("&c&l⚡ RUSH MODE &r&c— All generators are running at &e2x speed&c!"));
+        }
+
+        // Start resource generators (Feature 6: Rush Mode applies doubled speed)
         for (ResourceGenerator gen : generators) {
+            if (rushMode) gen.applyRushMode();
             gen.start();
         }
 
@@ -383,13 +413,26 @@ public class BedwarsGame {
                 elapsedSeconds++;
                 applyOngoingEffects();
 
-                // Check max time
+                // Feature 5: Game Timer Announcements
                 int maxTime = plugin.getConfig().getInt("game.max-time", 40);
-                if (maxTime > 0 && elapsedSeconds >= maxTime * 60) {
-                    // End game by most kills
-                    endGameByKills();
-                    cancel();
-                    return;
+                if (maxTime > 0) {
+                    int remaining = maxTime * 60 - elapsedSeconds;
+                    if (remaining == 1800) {
+                        broadcast(MessageUtils.color("&e&l30 minutes &r&eremaining!"));
+                    } else if (remaining == 600) {
+                        broadcast(MessageUtils.color("&6&l10 minutes &r&eremaining!"));
+                        for (UUID uid : getAllPlayers()) { Player p = Bukkit.getPlayer(uid); if (p != null) MessageUtils.playSound(p, Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 1.0f); }
+                    } else if (remaining == 300) {
+                        broadcast(MessageUtils.color("&c&l5 minutes &r&eremaining!"));
+                        for (UUID uid : getAllPlayers()) { Player p = Bukkit.getPlayer(uid); if (p != null) MessageUtils.playSound(p, Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 1.3f); }
+                    } else if (remaining == 60) {
+                        broadcast(MessageUtils.color("&4&l1 minute &r&eremaining! &cGame will end soon!"));
+                        for (UUID uid : getAllPlayers()) { Player p = Bukkit.getPlayer(uid); if (p != null) { MessageUtils.playSound(p, Sound.ENTITY_WITHER_SPAWN, 0.5f, 2.0f); MessageUtils.sendTitle(p, "&4&l1 MINUTE!", "&cGame ending soon!", 10, 40, 10); } }
+                    } else if (remaining <= 0) {
+                        endGameByKills();
+                        cancel();
+                        return;
+                    }
                 }
 
                 // Update scoreboard every 5 seconds
@@ -478,10 +521,18 @@ public class BedwarsGame {
                 }
             }
 
-            // Void damage
+            // Feature 3: Void Protection — teleport back to island instead of instant void death
             int voidY = plugin.getConfig().getInt("game.void-y", -64);
             if (player.getLocation().getY() < voidY) {
-                player.setHealth(0);
+                Location safeSpot = team.getSpawnLocation();
+                if (safeSpot != null) {
+                    player.teleport(safeSpot);
+                    activateSpawnShield(player);
+                    MessageUtils.sendTitle(player, "&c&lVOID!", "&eYou were teleported back!", 5, 25, 5);
+                    MessageUtils.playSound(player, Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 0.5f);
+                } else {
+                    player.setHealth(0);
+                }
             }
         }
 
@@ -698,6 +749,12 @@ public class BedwarsGame {
         }
         placedBlocks.clear();
 
+        // Feature 9: Remove bed guard blocks
+        for (Location loc : bedGuardBlocks) {
+            loc.getBlock().setType(Material.AIR);
+        }
+        bedGuardBlocks.clear();
+
         // Reset team state — keep spawn/bed locations but clear players/stats/upgrades
         for (BedwarsTeam team : teams) {
             if (!team.isBedAlive()) {
@@ -821,6 +878,9 @@ public class BedwarsGame {
             player.teleport(spectatorLocation);
         }
         HotbarManager.giveSpectatorItems(player);
+        // Feature 4: Spectator Buffs — night vision so spectators can see clearly
+        player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 0, false, false));
+        player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, Integer.MAX_VALUE, 1, false, false));
     }
 
     private void sendToMainLobby(Player player) {
@@ -1112,6 +1172,91 @@ public class BedwarsGame {
     public boolean isDreamDefender(UUID uuid) {
         return dreamDefenders.containsKey(uuid);
     }
+
+    // ============================================================
+    // FEATURE HELPER METHODS
+    // ============================================================
+
+    /** Feature 1: Give kill reward items to the killer. */
+    private void giveKillReward(Player killer, boolean finalKill) {
+        if (finalKill) {
+            killer.getInventory().addItem(new ItemStack(Material.GOLD_INGOT, 1));
+            killer.getInventory().addItem(new ItemStack(Material.IRON_INGOT, 4));
+            MessageUtils.sendActionBar(killer, MessageUtils.color("&6+1 Gold &7+ &f+4 Iron &e(Final Kill Reward)"));
+        } else {
+            killer.getInventory().addItem(new ItemStack(Material.IRON_INGOT, 2));
+            MessageUtils.sendActionBar(killer, MessageUtils.color("&f+2 Iron &e(Kill Reward)"));
+        }
+    }
+
+    /** Feature 2: Grant 3-second spawn shield to a player. */
+    public void activateSpawnShield(Player player) {
+        spawnShieldPlayers.add(player.getUniqueId());
+        player.addPotionEffect(new PotionEffect(PotionEffectType.DAMAGE_RESISTANCE, 60, 255, false, false));
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                spawnShieldPlayers.remove(player.getUniqueId());
+            }
+        }.runTaskLater(plugin, 60L);
+    }
+
+    public boolean hasSpawnShield(UUID uuid) {
+        return spawnShieldPlayers.contains(uuid);
+    }
+
+    /** Feature 7: Auto Team Balance — distribute players evenly across teams. */
+    private void autoBalanceTeams() {
+        if (teams.size() < 2) return;
+        int totalPlayers = getAllPlayers().size();
+        int maxPerTeam = (int) Math.ceil((double) totalPlayers / teams.size());
+        List<UUID> overflow = new ArrayList<>();
+        for (BedwarsTeam team : teams) {
+            while (team.getSize() > maxPerTeam) {
+                UUID moved = team.getPlayers().get(team.getSize() - 1);
+                team.removePlayer(moved);
+                playerTeamMap.remove(moved);
+                overflow.add(moved);
+            }
+        }
+        for (UUID uuid : overflow) {
+            BedwarsTeam smallest = getSmallestTeam();
+            if (smallest != null) {
+                smallest.addPlayer(uuid);
+                playerTeamMap.put(uuid, smallest);
+            }
+        }
+    }
+
+    /** Feature 9: Place 1-block-thick wool guard around each team's bed. */
+    private void placeBedGuardBlocks() {
+        int radius = plugin.getConfig().getInt("game.bed-guard-radius", 1);
+        for (BedwarsTeam team : teams) {
+            Location bedLoc = team.getBedLocation();
+            if (bedLoc == null) continue;
+            Material guardMat = team.getColor().getWoolMaterial();
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    Location guardLoc = bedLoc.clone().add(dx, 0, dz);
+                    Block block = guardLoc.getBlock();
+                    if (block.getType() == Material.AIR) {
+                        block.setType(guardMat);
+                        bedGuardBlocks.add(guardLoc.clone());
+                    }
+                }
+            }
+        }
+    }
+
+    // Feature 6: Rush Mode getters/setters
+    public boolean isRushMode() { return rushMode; }
+    public void setRushMode(boolean rushMode) { this.rushMode = rushMode; }
+
+    // Feature 10: Private Game Password
+    public boolean hasPassword() { return password != null && !password.isEmpty(); }
+    public String getPassword() { return password; }
+    public void setPassword(String password) { this.password = (password == null || password.isEmpty()) ? null : password; }
+    public boolean checkPassword(String attempt) { return !hasPassword() || password.equals(attempt); }
 
     private record GeneratorLocation(GeneratorType type, Location location, BedwarsTeam team) {}
 }

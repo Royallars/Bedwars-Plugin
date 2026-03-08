@@ -9,7 +9,7 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
-import org.jetbrains.annotations.NotNull;
+
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,8 +25,8 @@ public class JoinCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command,
-                              @NotNull String label, @NotNull String[] args) {
+    public boolean onCommand(CommandSender sender, Command command,
+                              String label, String[] args) {
         if (!(sender instanceof Player player)) {
             sender.sendMessage("Only players can use this command.");
             return true;
@@ -78,6 +78,15 @@ public class JoinCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
+        // Feature 10: Private Game Password check
+        if (game.hasPassword()) {
+            String attempt = args.length >= 2 ? args[1] : "";
+            if (!game.checkPassword(attempt)) {
+                MessageUtils.sendMessage(player, "&cThis is a private game! Usage: &e/bwjoin " + arenaName + " <password>");
+                return;
+            }
+        }
+
         boolean joined = plugin.getGameManager().joinGame(player, game);
         if (joined) {
             MessageUtils.sendMessage(player, "&aYou joined &e" + arenaName + "&a!");
@@ -96,8 +105,8 @@ public class JoinCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
-                                       @NotNull String alias, @NotNull String[] args) {
+    public List<String> onTabComplete(CommandSender sender, Command command,
+                                       String alias, String[] args) {
         List<String> completions = new ArrayList<>();
         if (!isLeave && args.length == 1) {
             plugin.getGameManager().getGameMap().keySet().forEach(completions::add);
