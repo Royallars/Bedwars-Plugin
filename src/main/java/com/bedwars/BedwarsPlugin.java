@@ -3,6 +3,7 @@ package com.bedwars;
 import com.bedwars.commands.BedwarsCommand;
 import com.bedwars.commands.JoinCommand;
 import com.bedwars.commands.LeaderboardCommand;
+import com.bedwars.commands.ReplayCommand;
 import com.bedwars.commands.StatsCommand;
 import com.bedwars.game.BedwarsGame;
 import com.bedwars.game.GameManager;
@@ -11,6 +12,7 @@ import com.bedwars.listeners.BedListener;
 import com.bedwars.listeners.GameListener;
 import com.bedwars.listeners.PlayerListener;
 import com.bedwars.listeners.ShopListener;
+import com.bedwars.replay.ReplayManager;
 import com.bedwars.stats.StatsManager;
 import com.bedwars.utils.ConfigManager;
 import org.bukkit.plugin.PluginManager;
@@ -25,6 +27,7 @@ public class BedwarsPlugin extends JavaPlugin {
     private ConfigManager configManager;
     private GUIManager guiManager;
     private StatsManager statsManager;
+    private ReplayManager replayManager;
 
     @Override
     public void onEnable() {
@@ -39,6 +42,9 @@ public class BedwarsPlugin extends JavaPlugin {
         guiManager = new GUIManager(this);
         statsManager = new StatsManager(this);
         statsManager.initialize();
+
+        replayManager = new ReplayManager(this);
+        replayManager.start();
 
         // Load saved arenas
         loadArenas();
@@ -71,6 +77,10 @@ public class BedwarsPlugin extends JavaPlugin {
             statsManager.shutdown();
         }
 
+        if (replayManager != null) {
+            replayManager.cleanup();
+        }
+
         getLogger().info("BedwarsPlugin has been disabled. Goodbye!");
     }
 
@@ -101,6 +111,10 @@ public class BedwarsPlugin extends JavaPlugin {
         LeaderboardCommand topCommand = new LeaderboardCommand(this);
         getCommand("bwtop").setExecutor(topCommand);
         getCommand("bwtop").setTabCompleter(topCommand);
+
+        ReplayCommand replayCommand = new ReplayCommand(this);
+        getCommand("bwreplay").setExecutor(replayCommand);
+        getCommand("bwreplay").setTabCompleter(replayCommand);
     }
 
     private void registerListeners() {
@@ -130,5 +144,9 @@ public class BedwarsPlugin extends JavaPlugin {
 
     public StatsManager getStatsManager() {
         return statsManager;
+    }
+
+    public ReplayManager getReplayManager() {
+        return replayManager;
     }
 }

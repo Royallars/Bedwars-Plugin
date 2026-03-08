@@ -129,12 +129,20 @@ public class PlayerListener implements Listener {
             return;
         }
 
-        // Prevent friendly fire
+        // Prevent friendly fire + record combat data for replay
         if (event.getDamager() instanceof Player attacker) {
             BedwarsTeam victimTeam = game.getPlayerTeam(victim.getUniqueId());
             BedwarsTeam attackerTeam = game.getPlayerTeam(attacker.getUniqueId());
             if (victimTeam != null && attackerTeam != null && victimTeam.getColor() == attackerTeam.getColor()) {
                 event.setCancelled(true);
+            } else {
+                // Record reach distance for anti-cheat replay
+                double reach = attacker.getLocation().distance(victim.getLocation());
+                plugin.getReplayManager().recordAttack(
+                        attacker.getUniqueId(), attacker.getName(),
+                        reach,
+                        victim.getUniqueId(), victim.getName(),
+                        victim.getHealth());
             }
         }
     }

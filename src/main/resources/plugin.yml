@@ -1,7 +1,7 @@
 name: BedwarsPlugin
 version: '${project.version}'
 main: com.bedwars.BedwarsPlugin
-api-version: 1.19
+api-version: 1.20
 authors: [BedwarsPlugin]
 description: Hypixel-style Bedwars plugin
 
@@ -38,3 +38,7 @@ permissions:
   bedwars.bypass:
     description: Bypass certain restrictions
     default: op
+  bwreplay:
+    description: View live replay data to detect hackers
+    usage: /bwreplay <player> [trail]
+    permission: bedwars.admin
